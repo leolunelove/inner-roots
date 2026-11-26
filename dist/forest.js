@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js';
-import {scanFieldGLSL} from './scan-field.js';
-import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js';
+import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js?v=1.1.0-demo.1';
+import {scanFieldGLSL} from './scan-field.js?v=1.1.0-demo.1';
+import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js?v=1.1.0-demo.1';
 
 const atlas=new THREE.TextureLoader().load('./assets/forest-materials-v2.png');
 atlas.colorSpace=THREE.SRGBColorSpace;

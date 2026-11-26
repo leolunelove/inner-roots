@@ -1,4 +1,4 @@
-import {PULSE_DURATION,ARRIVAL_WINDOW,LIQUID_SLOWDOWN} from './pulse-timing.js';
+import {PULSE_DURATION,ARRIVAL_WINDOW,LIQUID_SLOWDOWN} from './pulse-timing.js?v=1.1.0-demo.1';
 // Route-driven exposure under a viscous surface film. Rounded lobes, beads and
 // connecting necks replace the earlier sharp finger mask.
 export const scanFieldGLSL=`

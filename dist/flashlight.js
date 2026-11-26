@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {random} from './maze.js';
+import {random} from './maze.js?v=1.1.0-demo.1';
 
 // Linear light intensity, projected by the real spotlight onto receiving surfaces.
 // An off-centre filament, uneven reflector and weak spill avoid a filled light disc.

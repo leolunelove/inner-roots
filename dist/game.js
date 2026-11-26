@@ -1,11 +1,11 @@
 import * as THREE from './vendor/three.module.js';
-import {createMaze,random,CELL,walkable,pathClearance,hedgeDensity} from './maze.js';
-import {buildForest,createForestMaterials} from './forest.js';
-import {createFlashlight} from './flashlight.js';
-import {createNervousSystem} from './nervous-system.js';
-import {PULSE_RECHARGE} from './pulse-timing.js';
-import {createForestSoundscape} from './forest-audio.js';
-import {LEVELS,DEMO_VERSION} from './levels.js';
+import {createMaze,random,CELL,walkable,pathClearance,hedgeDensity} from './maze.js?v=1.1.0-demo.1';
+import {buildForest,createForestMaterials} from './forest.js?v=1.1.0-demo.1';
+import {createFlashlight} from './flashlight.js?v=1.1.0-demo.1';
+import {createNervousSystem} from './nervous-system.js?v=1.1.0-demo.1';
+import {PULSE_RECHARGE} from './pulse-timing.js?v=1.1.0-demo.1';
+import {createForestSoundscape} from './forest-audio.js?v=1.1.0-demo.1';
+import {LEVELS,DEMO_VERSION} from './levels.js?v=1.1.0-demo.1';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'})}catch(error){$('loading').innerHTML='<p>This forest needs WebGL to grow.<br>Please open it in a browser with graphics acceleration enabled.</p>';throw error}
