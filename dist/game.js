@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {createMaze,random,CELL,walkable} from './maze.js';
+import {createMaze,random,CELL,walkable,pathClearance,hedgeDensity} from './maze.js';
 import {buildForest,createForestMaterials} from './forest.js';
 import {createFlashlight} from './flashlight.js';
 import {createNervousSystem} from './nervous-system.js';
@@ -18,17 +18,12 @@ const flashlight=createFlashlight(scene,camera);
 const clock=new THREE.Clock();const keys=new Set();const pointUniforms={uPreview:{value:1},uEye:{value:new THREE.Vector3()},uDirection:{value:new THREE.Vector3()},uPulse:{value:-100},uOrigin:{value:new THREE.Vector3()},uNerveMap:{value:null},uVeinMap:{value:null},uForestSize:{value:1},uTreeMap:{value:null},uTreeCount:{value:1},uVeinTint:{value:new THREE.Color()},uScanTint:{value:new THREE.Color()},uTime:{value:0}};
 let maze,world,nerveNetwork,signals=[],gate,particles=[],discovered=new Set(),collected=0,mode='home',elapsed=0,pulses=0,charge=1,pulseAge=100,yaw=0,pitch=-.04,toastTimer=0,footstep=0,seed=4201,levelIndex=0,mapOpen=false;
 const player=new THREE.Vector3(CELL,1.65,CELL),lastFoot=new THREE.Vector3();let drag=null,stick={x:0,y:0},audio=null,soundOn=false,soundscape=null,lastScan=null;
-let records={};try{const saved=JSON.parse(localStorage.getItem('inner-roots-demo-v1')||'{}');for(const level of LEVELS){const record=saved[level.id];if(record&&Number.isFinite(record.time)&&record.time>0&&Number.isInteger(record.pulses)&&record.pulses>=0)records[level.id]=record}}catch{}
+let records={};try{const saved=JSON.parse(localStorage.getItem('inner-roots-demo-v1.1')||'{}');for(const level of LEVELS){const record=saved[level.id];if(record&&Number.isFinite(record.time)&&record.time>0&&Number.isInteger(record.pulses)&&record.pulses>=0)records[level.id]=record}}catch{}
 const materials={...createForestMaterials(pointUniforms),metal:new THREE.MeshStandardMaterial({color:'#25342b',roughness:.65,metalness:.4}),glow:new THREE.MeshBasicMaterial({color:'#dddcb3'}),gate:new THREE.MeshStandardMaterial({color:'#84936d',roughness:.9,emissive:'#9acb55',emissiveIntensity:.1})};
 function terrainHeight(x,z){
- let h=0;const gx=Math.round(x/CELL),gz=Math.round(z/CELL);
- for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){
-  const a=gx+dx,b=gz+dz;if(maze.grid[b]?.[a]!==1)continue;
-  const xx=Math.abs(x-a*CELL),zz=Math.abs(z-b*CELL);
-  const d=Math.pow(Math.pow(xx,4)+Math.pow(zz,4),.25);
-  const height=LEVELS[levelIndex].bankHeight+.25*Math.sin(a*7.1+b*3.9);
-  h=Math.max(h,height*(1-THREE.MathUtils.smoothstep(d,.75,2.12)));
- }
+ const clearance=pathClearance(maze,x,z),cover=hedgeDensity(maze,x,z);
+ const peak=THREE.MathUtils.lerp(LEVELS[levelIndex].bankHeight,.32,THREE.MathUtils.smoothstep(cover,.35,.8));
+ const h=peak*THREE.MathUtils.smoothstep(-clearance,.1,1.55);
  const bank=Math.min(1,h/.7);
  return h+bank*(Math.sin(x*3.1+Math.sin(z*2.7))*.11+Math.sin(z*6.1+x*4.2)*.045)+Math.sin(x*2.7+z*1.2)*.022+Math.sin(z*4-x*1.7)*.015;
 }
@@ -36,11 +31,17 @@ function addMesh(geo,mat,x,y,z,scale=1){const m=new THREE.Mesh(geo,mat);m.positi
 function makeWorld(){
  soundscape?.reset();lastScan=null;
  if(nerveNetwork)nerveNetwork.dispose();
- if(world){world.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.customDepthMaterial)o.customDepthMaterial.dispose();if(o.material?.userData?.unique)o.material.dispose()});scene.remove(world)}
+ if(world){
+  const geometries=new Set(),uniqueMaterials=new Set();
+  world.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.customDepthMaterial)uniqueMaterials.add(o.customDepthMaterial);if(o.material?.userData?.unique)uniqueMaterials.add(o.material);if(o.isInstancedMesh)o.dispose()});
+  geometries.forEach(geometry=>geometry.dispose());uniqueMaterials.forEach(material=>material.dispose());
+  scene.remove(world);renderer.renderLists.dispose();
+ }
  const level=LEVELS[levelIndex];seed=level.seed;
  scene.background.set(level.background);scene.fog.color.set(level.fog);scene.fog.density=level.fogDensity;
  pointUniforms.uVeinTint.value.set(level.vein);pointUniforms.uScanTint.value.set(level.scan);
- for(const name of ['bark','root','rock','foliage','canopy','twig','terrain'])materials[name].color.set(level[{foliage:'leaf',terrain:'soil'}[name]||name]);
+ for(const name of ['bark','root','rock','foliage','canopy','twig','terrain','hedge','hedgeLeaf'])materials[name].color.set(level[{foliage:'leaf',terrain:'soil',hedgeLeaf:'hedge'}[name]||name]);
+ materials.hedgeLeaf.color.multiplyScalar(1.75);
  document.documentElement.style.setProperty('--acid',level.accent);
  $('chapter').textContent=level.name.toUpperCase();
  world=new THREE.Group();scene.add(world);maze=createMaze(seed,level.size);const r=random(seed+200),extent=maze.n*CELL;
@@ -92,7 +93,23 @@ function toggleMap(){
  if(mapOpen){soundscape?.pause();freeMouse=false;lastMouse=null;edgeLook={x:0,y:0};document.body.classList.remove('mouse-look');if(document.pointerLockElement)document.exitPointerLock();drawMap()}
  else{canvas.focus();captureMouse()}
 }
-function drawMap(){const c=$('map'),ctx=c.getContext('2d'),s=396/maze.n,pad=22;ctx.clearRect(0,0,440,440);for(let z=0;z<maze.n;z++)for(let x=0;x<maze.n;x++){const known=discovered.has(`${x},${z}`);ctx.fillStyle=known?(maze.grid[z][x]?'#27382b':'#718163'):'#101c15';ctx.fillRect(pad+x*s+1,pad+z*s+1,s-2,s-2)}for(const t of signals){if(!discovered.has(`${t.x},${t.z}`))continue;ctx.save();ctx.translate(pad+(t.x+.5)*s,pad+(t.z+.5)*s);ctx.rotate(Math.PI/4);ctx.strokeStyle=t.found?'#60734e':'#e3f3b7';ctx.lineWidth=2;ctx.strokeRect(-5,-5,10,10);ctx.restore()}if(discovered.has(`${maze.exit.x},${maze.exit.z}`)){ctx.strokeStyle=collected===3?'#e3f3b7':'#929e80';ctx.lineWidth=2;ctx.strokeRect(pad+(maze.exit.x+.25)*s,pad+(maze.exit.z+.15)*s,s*.5,s*.7)}const px=pad+(player.x/CELL+.5)*s,pz=pad+(player.z/CELL+.5)*s;ctx.save();ctx.translate(px,pz);ctx.rotate(-yaw);ctx.fillStyle='#e8f6bd';ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,6);ctx.lineTo(0,3);ctx.lineTo(-6,6);ctx.closePath();ctx.fill();ctx.restore()}
+function drawMap(){
+ const c=$('map'),ctx=c.getContext('2d'),s=396/maze.n,pad=22,scale=s/CELL;
+ ctx.clearRect(0,0,440,440);ctx.fillStyle='#101c15';ctx.fillRect(pad,pad,396,396);
+ ctx.save();ctx.beginPath();
+ for(let z=0;z<maze.n;z++)for(let x=0;x<maze.n;x++)if(discovered.has(`${x},${z}`))ctx.rect(pad+x*s,pad+z*s,s,s);
+ ctx.clip();ctx.fillStyle='#27382b';ctx.fillRect(pad,pad,396,396);
+ // Tapered trails and glades use the same shapes as the walking boundaries.
+ ctx.fillStyle='#718163';
+ for(const shape of maze.space.shapes){
+  const steps=shape.clearing?0:12;
+  for(let i=0;i<=steps;i++){
+   const t=steps?i/steps:0,ease=t*t*(3-2*t),width=shape.wa+(shape.wb-shape.wa)*ease;
+   ctx.beginPath();ctx.arc(pad+(shape.ax+(shape.bx-shape.ax)*t)*scale+s/2,pad+(shape.az+(shape.bz-shape.az)*t)*scale+s/2,width*scale,0,Math.PI*2);ctx.fill();
+  }
+ }
+ ctx.restore();
+ for(const t of signals){if(!discovered.has(`${t.x},${t.z}`))continue;ctx.save();ctx.translate(pad+(t.x+.5)*s,pad+(t.z+.5)*s);ctx.rotate(Math.PI/4);ctx.strokeStyle=t.found?'#60734e':'#e3f3b7';ctx.lineWidth=2;ctx.strokeRect(-5,-5,10,10);ctx.restore()}if(discovered.has(`${maze.exit.x},${maze.exit.z}`)){ctx.strokeStyle=collected===3?'#e3f3b7':'#929e80';ctx.lineWidth=2;ctx.strokeRect(pad+(maze.exit.x+.25)*s,pad+(maze.exit.z+.15)*s,s*.5,s*.7)}const px=pad+(player.x/CELL+.5)*s,pz=pad+(player.z/CELL+.5)*s;ctx.save();ctx.translate(px,pz);ctx.rotate(-yaw);ctx.fillStyle='#e8f6bd';ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,6);ctx.lineTo(0,3);ctx.lineTo(-6,6);ctx.closePath();ctx.fill();ctx.restore()}
 function pulse(){if(mode!=='playing'||charge<.99)return;charge=0;pulses++;pulseAge=0;pointUniforms.uOrigin.value.copy(player);lastScan=nerveNetwork.pulse(player);for(const cell of lastScan.charted)discovered.add(`${cell.x},${cell.z}`);soundscape?.pulse(lastScan,player);if(mapOpen)drawMap();const left=signals.filter(s=>!s.found);const near=left.sort((a,b)=>Math.hypot(a.x*CELL-player.x,a.z*CELL-player.z)-Math.hypot(b.x*CELL-player.x,b.z*CELL-player.z))[0];if(near){const dist=Math.round(Math.hypot(near.x*CELL-player.x,near.z*CELL-player.z));toast(`Signal echo · ${dist} m away`,3)}else toast('All signals recovered. The exit is illuminated.',3)}
 function refreshMenu(){
  document.querySelectorAll('[data-level]').forEach(button=>{const i=Number(button.dataset.level),record=records[LEVELS[i].id];button.classList.toggle('selected',i===levelIndex);button.classList.toggle('done',!!record);button.setAttribute('aria-pressed',String(i===levelIndex));$('best'+i).textContent=record?'Cleared · '+formatTime(record.time):'Not yet explored'});
@@ -110,7 +127,7 @@ function returnMenu(){
 function win(){
  mode='won';soundscape?.pause();freeMouse=false;document.body.classList.remove('mouse-look');if(document.pointerLockElement)document.exitPointerLock();keys.clear();
  const level=LEVELS[levelIndex],previous=records[level.id];if(!previous||elapsed<previous.time)records[level.id]={time:elapsed,pulses};
- try{localStorage.setItem('inner-roots-demo-v1',JSON.stringify(records))}catch{}
+ try{localStorage.setItem('inner-roots-demo-v1.1',JSON.stringify(records))}catch{}
  const completed=LEVELS.filter(level=>records[level.id]).length,complete=completed===LEVELS.length;
  $('winPanel').hidden=false;$('winTime').textContent=formatTime(elapsed);$('winScans').textContent=pulses;
  $('winEyebrow').textContent=complete?'INNER ROOTS · DEMO COMPLETE':level.name.toUpperCase()+' · COMPLETE';
@@ -118,7 +135,7 @@ function win(){
  $('winCopy').textContent=complete?'Three groves. Nine signals. You found your way through a living forest. Thank you for playing the first Inner Roots demo.':`You recovered all three signals in ${level.name}. The roots have one less secret.`;
  $('next').textContent=levelIndex<LEVELS.length-1?'Enter '+LEVELS[levelIndex+1].name:'Return to main menu';
  $('winMenu').hidden=levelIndex===LEVELS.length-1;
- $('winFootnote').textContent=complete?'End of gameplay demo · v1.0':`${completed} of 3 groves remembered. Each has a different way home.`;
+ $('winFootnote').textContent=complete?'End of gameplay demo · v1.1':`${completed} of 3 groves remembered. Each has a different way home.`;
  refreshMenu();tone(392,1,.04);setTimeout(()=>tone(523,1.5,.025),220);
 }
 function initAudio(){if(audio)return;audio=new (window.AudioContext||window.webkitAudioContext)();soundscape=createForestSoundscape(audio);if(lastScan)soundscape.pulse(lastScan,pointUniforms.uOrigin.value)}
@@ -193,4 +210,5 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  for(const p of particles){p.mesh.position.y+=Math.sin(t+p.phase)*dt*.05;p.mesh.material.opacity=.25+Math.sin(t*1.5+p.phase)*.2}
  renderer.render(scene,camera);
 }
+const linkedLevel=LEVELS.findIndex(level=>level.id===new URLSearchParams(location.search).get('maze'));if(linkedLevel>=0)levelIndex=linkedLevel;
 makeWorld();refreshMenu();requestAnimationFrame(()=>{$('loading').style.opacity=0;setTimeout(()=>$('loading').hidden=true,550);frame()});

@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Verify gameplay and audio
-        run: node verify.mjs && node verify-nerves.mjs && node verify-audio.mjs && node verify-demo.mjs
+        run: node verify.mjs && node verify-nerves.mjs && node verify-audio.mjs && node verify-demo.mjs && node verify-space.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

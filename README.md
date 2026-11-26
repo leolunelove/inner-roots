@@ -1,18 +1,20 @@
 ![Inner Roots](docs/cover.svg)
 
-# Inner Roots — Gameplay Demo v1.0
+# Inner Roots — Gameplay Demo v1.1
 
 **[Play in your browser](https://leolunelove.github.io/inner-roots/)** · [Download demo v1.0](https://github.com/leolunelove/inner-roots/releases/tag/v1.0.0-demo.1)
 
 A quiet first-person exploration game about finding your way through a living forest. Your flashlight barely reaches the next turn. Send a pulse through the buried roots: veins wake unevenly, trees contract, and a thick black film drains away before slowly crawling back.
 
-**Three complete mazes. Nine signals. One demo ending.** All three mazes are selectable from the centred main menu, or playable in sequence. Cleared groves and best times are saved on your device.
+**Three larger, varied mazes. Nine signals. One demo ending.** All three mazes are selectable from the centred main menu, or playable in sequence. Cleared groves and best times are saved on your device.
 
 | Maze | Environment |
 | --- | --- |
-| The Hollow | Dense old-growth woodland, moss, leaf litter and warm root light |
-| The Drowned | Pale trunks, shallow black water, reeds, cold fog and cyan veins |
-| The Cinder | Charred trunks, broken crowns, sparse ground cover and ember light |
+| The Hollow | Old-growth trees, leafy hedge lanes, mossy glades and warm root light |
+| The Drowned | Flooded glades, tight hedge passages, pale trunks and cyan veins |
+| The Cinder | The largest maze: charred trees, tangled thickets and ember light |
+
+The Hollow, Drowned and Cinder now use 6×6, 7×7 and 8×8 room layouts. Trails taper between approximately 1.5 and 3.6 metres wide, opening into larger glades. Dense hedges alternate with tree-lined earth banks, and the field map follows the actual trail shapes. Best times start fresh for these larger layouts.
 
 ## Play locally
 
@@ -47,9 +49,12 @@ node verify.mjs
 node verify-nerves.mjs
 node verify-audio.mjs
 node verify-demo.mjs
+node verify-space.mjs
 ```
 
-The demo was played through in a real browser using keyboard movement: all nine signals collected, all three gates completed, transitions and the final ending displayed, and saved completion marks survived reload. The centred menu and instructions were reviewed at desktop size and 390 × 844. Shader and console checks passed. Native Pointer Lock in a supporting desktop browser and physical touch hardware still need hands-on checks.
+The original v1.0 demo was played through in a real browser using keyboard movement: all nine signals collected, all three gates completed, transitions and the final ending displayed, and saved completion marks survived reload. The centred menu and instructions were reviewed at desktop size and 390 × 844. Shader and console checks passed. Native Pointer Lock in a supporting desktop browser and physical touch hardware still need hands-on checks.
+
+For v1.1, the expanded Hollow was completed with keyboard movement in the browser. The Drowned and Cinder environments, pulses, map and grove switching were reviewed in Safari. Chromium graphics contexts became unavailable during this session, including for the unchanged v1.0 baseline; a full v1.1 Chromium rerun remains outstanding. The spatial suite checks 75 larger layouts and 351,124 body-route samples, including narrow turns, clearing edges, blocked wall centres and spatial-index agreement.
 
 The route suite covers 300 generated mazes and 377,244 collision/collection samples. Additional checks cover propagation, monotonic surges, quiet PCM textures, silent boundaries and visual/audio timing. Serve the project root and open `qa/audio.html` to render the actual sound graph offline and check stereo, headroom, mute, pause and resume. Digital output was verified; physical-headphone listening has not been reviewed.
 
@@ -61,4 +66,4 @@ Game, original vector logo, procedural environments and synthesized sound: **Leo
 
 Visual inspiration: the forest-light study by **011 / @nomoreluca**, [shared by Three.js](https://x.com/threejs/status/2123549786272100698). This demo is an original interpretation.
 
-This is the first gameplay demo, version `1.0.0-demo.1`. Original project code and assets carry no additional license grant; the third-party Three.js license remains applicable to its files.
+This is gameplay demo version `1.1.0-demo.1`. Original project code and assets carry no additional license grant; the third-party Three.js license remains applicable to its files.

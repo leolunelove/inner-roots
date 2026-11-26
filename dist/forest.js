@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {random,CELL} from './maze.js';
+import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js';
 import {scanFieldGLSL} from './scan-field.js';
 import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js';
 
@@ -50,7 +50,7 @@ function revealMaterial(material,uniforms,kind=-1,treeMotion=false){
     vec4 trail=mix(litter,packedSoil,vTrailWear*.85);
     float damp=.5+.5*forestNoise(vForestWorld*.43);
     trail.rgb*=1.-vTrailWear*damp*.17;
-    vec4 forestAlbedo=mix(trail,moss,mossMix);`:kind===1?`vec4 forestAlbedo=forestSample(vec2(vMapUv.x*1.5,vForestWorld.y*.34),vec2(.5,.5));`:kind===3?`vec4 forestAlbedo=forestSample(vec2(vMapUv.y*.8,vMapUv.x*2.8),vec2(.5,.5));`:`vec4 forestAlbedo=forestTriplanar(vForestWorld*.58,vec2(.5,0.));`;
+    vec4 forestAlbedo=mix(trail,moss,mossMix);`:kind===4?`vec4 forestAlbedo=forestTriplanar(vForestWorld*2.1,vec2(0.));`:kind===1?`vec4 forestAlbedo=forestSample(vec2(vMapUv.x*1.5,vForestWorld.y*.34),vec2(.5,.5));`:kind===3?`vec4 forestAlbedo=forestSample(vec2(vMapUv.y*.8,vMapUv.x*2.8),vec2(.5,.5));`:`vec4 forestAlbedo=forestTriplanar(vForestWorld*.58,vec2(.5,0.));`;
    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',sampling+'\ndiffuseColor*=forestAlbedo;');
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     float forestRelief=dot(forestAlbedo.rgb,vec3(.3,.5,.2))*(1.-wetInk*.94);
@@ -85,7 +85,7 @@ function revealMaterial(material,uniforms,kind=-1,treeMotion=false){
    `:''}
    #include <opaque_fragment>`);
  };
- material.customProgramCacheKey=()=>`forest-buried-veins-liquid-demo-v10-${kind}-${treeMotion}`;
+ material.customProgramCacheKey=()=>`forest-buried-veins-liquid-demo-v11-${kind}-${treeMotion}`;
  return material;
 }
 
@@ -98,10 +98,25 @@ export function createForestMaterials(uniforms){
  const canopy=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,alphaTest:.36,side:THREE.DoubleSide,roughness:.9,color:'#819269'}),uniforms);
  const twig=revealMaterial(new THREE.MeshStandardMaterial({color:'#4e3e2d',roughness:1}),uniforms);
  const water=revealMaterial(new THREE.MeshStandardMaterial({color:'#456a68',transparent:true,opacity:.34,roughness:.17,metalness:.3,depthWrite:false}),uniforms,-2);
- return {terrain,bark,root,rock,foliage,canopy,twig,water};
+ const hedge=revealMaterial(new THREE.MeshStandardMaterial({map:atlas,color:'#78915c',roughness:.96}),uniforms,4);
+ const hedgeLeaf=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,alphaTest:.36,side:THREE.DoubleSide,color:'#829c66',roughness:.9}),uniforms);
+ return {terrain,bark,root,rock,foliage,canopy,twig,water,hedge,hedgeLeaf};
 }
 
-function instance(world,geometry,material,matrices,shadows=false,motion=null){
+function instance(world,geometry,material,matrices,shadows=false,motion=null,partition=true){
+ // Bound each grove section separately so the view and flashlight shadow camera
+ // can cull the rest of a large maze instead of drawing every tree and leaf.
+ if(partition&&matrices.length>200){
+  const cells=new Map();
+  matrices.forEach((matrix,i)=>{
+   const key=`${Math.floor(matrix.elements[12]/9)},${Math.floor(matrix.elements[14]/9)}`;
+   if(!cells.has(key))cells.set(key,{matrices:[],ids:[]});
+   const cell=cells.get(key);cell.matrices.push(matrix);if(motion)cell.ids.push(motion.ids[i]);
+  });
+  const group=new THREE.Group();world.add(group);
+  for(const cell of cells.values())instance(group,geometry,material,cell.matrices,shadows,motion?{...motion,ids:cell.ids}:null,false);
+  return group;
+ }
  if(!matrices.length)return;
  if(motion){
   if(geometry.hasAttribute('aTreeId'))geometry=geometry.clone();
@@ -121,22 +136,11 @@ function instance(world,geometry,material,matrices,shadows=false,motion=null){
 
 export function buildForest(world,maze,height,materials,uniforms,theme){
  const r=random(maze.seed+53),extent=maze.n*CELL,half=extent/2-CELL/2;
- const trailSegments=[];
- for(let z=0;z<maze.n;z++)for(let x=0;x<maze.n;x++){
-  if(maze.grid[z][x])continue;
-  if(maze.grid[z]?.[x+1]===0)trailSegments.push([x*CELL,z*CELL,(x+1)*CELL,z*CELL]);
-  if(maze.grid[z+1]?.[x]===0)trailSegments.push([x*CELL,z*CELL,x*CELL,(z+1)*CELL]);
- }
  function trailWearAt(x,z){
-  let best=Infinity;
-  for(const [ax,az,bx,bz] of trailSegments){
-   const dx=bx-ax,dz=bz-az,t=THREE.MathUtils.clamp(((x-ax)*dx+(z-az)*dz)/(dx*dx+dz*dz),0,1);
-   best=Math.min(best,(x-ax-t*dx)**2+(z-az-t*dz)**2);
-  }
-  const drift=Math.sin(x*1.7+z*.6)*.12+Math.sin(z*2.4)*.08;
-  return 1-THREE.MathUtils.smoothstep(Math.sqrt(best)+drift,.25,.85);
+  const sample=sampleTrail(maze,x,z),across=sample.distance/Math.max(.01,sample.radius);
+  return 1-THREE.MathUtils.smoothstep(across,.18,.8);
  }
- const terrain=new THREE.PlaneGeometry(extent,extent,300,300);
+ const terrain=new THREE.PlaneGeometry(extent,extent,240,240);
  terrain.rotateX(-Math.PI/2);terrain.translate(half,0,half);
  const pos=terrain.attributes.position,colors=[],wear=[];
  for(let i=0;i<pos.count;i++){
@@ -149,7 +153,7 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
  const floor=new THREE.Mesh(terrain,materials.terrain);floor.castShadow=true;floor.receiveShadow=true;world.add(floor);
 
  const trunks=[],branches=[],roots=[],rocks=[],canopy=[],twigs=[],branchOwners=[],rootOwners=[],canopyOwners=[];
- const barkGeo=new THREE.CylinderGeometry(.16,.34,1,13,20);
+ const barkGeo=new THREE.CylinderGeometry(.16,.34,1,11,12);
  const bp=barkGeo.attributes.position;
  for(let i=0;i<bp.count;i++){
   const x=bp.getX(i),y=bp.getY(i),z=bp.getZ(i),a=Math.atan2(z,x);
@@ -166,6 +170,8 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
   const cx=x*CELL,cz=z*CELL;
   for(let j=0;j<theme.treesPerCell;j++){
    const tx=cx+(r()-.5)*2.4,tz=cz+(r()-.5)*2.4,base=height(tx,tz)-.65,h=theme.trunkMin+r()*theme.trunkRange,thick=.65+r()*.7;
+   if(pathClearance(maze,tx,tz)>-.48)continue;
+   if(hedgeDensity(maze,tx,tz)>.65&&j>0)continue;
    const tree=trunks.length;
    put(trunks,tx,base+h/2,tz,thick,h,thick,0,r()*6.28,0);
    for(let k=0;k<4;k++){
@@ -187,6 +193,7 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
   }
   for(let j=0;j<3;j++){
    const rx=cx+(r()-.5)*3,rz=cz+(r()-.5)*3,scale=.18+r()*.5;
+   if(pathClearance(maze,rx,rz)>-scale*1.4)continue;
    put(rocks,rx,height(rx,rz)-scale*.35,rz,scale*1.2,scale*.75,scale,r()*3,r()*3,r()*3);
   }
  }
@@ -239,6 +246,32 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
  const lp=leafGeo.attributes.position;
  for(let i=0;i<lp.count;i++)lp.setZ(i,Math.sin((lp.getY(i)+.5)*Math.PI)*.08+Math.abs(lp.getX(i))*.13);
  leafGeo.computeVertexNormals();instance(world,leafGeo,materials.canopy,canopy,false,{ids:canopyOwners,uniforms,kind:-1});
+
+ // Hedges follow the very same boundary used by collision and the earth banks.
+ // Opaque twig/leaf masses close the gaps; small veined leaves break the edge.
+ const hedges=[],hedgeLeaves=[];
+ const hedgeGeo=new THREE.SphereGeometry(1,9,7),hp=hedgeGeo.attributes.position;
+ for(let i=0;i<hp.count;i++){
+  const x=hp.getX(i),y=hp.getY(i),z=hp.getZ(i),bump=1+.07*Math.sin(x*17+z*11)+.04*Math.sin(y*23-x*9);
+  hp.setXYZ(i,x*bump,y*bump,z*bump);
+ }
+ hedgeGeo.computeVertexNormals();
+ for(let z=-CELL/2+.3;z<extent-CELL/2;z+=.65)for(let x=-CELL/2+.3;x<extent-CELL/2;x+=.65){
+  const cover=hedgeDensity(maze,x,z),gap=pathClearance(maze,x,z);
+  if(cover<.55||gap>-.17||gap<-.63)continue;
+  const base=height(x,z),top=1.55+r()*.45,bulk=.34+r()*.12;
+  put(hedges,x,base+.5,z,bulk,.62,bulk,0,r()*6.28,0);
+  put(hedges,x+(r()-.5)*.12,base+top-.5,z+(r()-.5)*.12,bulk,.58,bulk,0,r()*6.28,0);
+  const count=theme.id==='cinder'?32:80;
+  for(let j=0;j<count;j++){
+   const angle=r()*6.28,rad=.28+r()*.13,y=base+.15+r()*top,leaf=.18+r()*.14;
+   put(hedgeLeaves,x+Math.cos(angle)*rad,y,z+Math.sin(angle)*rad,leaf*.7,leaf,1,(r()-.5)*.65,Math.PI/2-angle,(r()-.5)*1.7);
+  }
+ }
+ const hedgeMesh=instance(world,hedgeGeo,materials.hedge,hedges,true);
+ if(hedgeMesh)hedgeMesh.traverse(mesh=>{if(mesh.isInstancedMesh)for(let i=0;i<mesh.count;i++)mesh.setColorAt(i,new THREE.Color().setScalar(.76+r()*.32))});
+ instance(world,new THREE.PlaneGeometry(1,1),materials.hedgeLeaf,hedgeLeaves);
+
 
  // Curved fronds made from paired, veined leaflets rather than flat triangles.
  const fp=[],fn=[],fu=[],fc=[];const matrix=new THREE.Matrix4(),quaternion=new THREE.Quaternion();

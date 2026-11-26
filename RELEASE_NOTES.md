@@ -1,3 +1,20 @@
+# Inner Roots — Varied Groves
+
+Version `1.1.0-demo.1` · 26 November 2026
+
+- Larger 6×6, 7×7 and 8×8 maze layouts.
+- Tapering narrow passages, broader tree lanes and open glades.
+- Dense leafy hedges and tangled thickets mixed with tree-lined earth banks.
+- Shared trail boundaries for terrain, scenery, collision and the explored map.
+- Fresh best times for the larger layouts.
+- Spatial forest batches let the view and flashlight skip unseen sections.
+- Instanced scene buffers released when changing groves.
+- Optional direct maze links using `?maze=hollow`, `?maze=drowned` or `?maze=cinder`.
+
+The expanded Hollow was completed in the browser with all three signals and the exit. Drowned and Cinder rendering and grove switching were checked in Safari. Chromium lost graphics context support during testing, including for the unchanged v1.0 baseline; the final v1.1 Chromium rerun remains outstanding. Automated checks cover 75 larger layouts and 351,124 body-route samples in addition to the existing maze, propagation and audio suites.
+
+---
+
 # Inner Roots — First Gameplay Demo
 
 Version `1.0.0-demo.1` · 26 November 2026
