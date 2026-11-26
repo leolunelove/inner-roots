@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Forest audio verification</title>
+<style>body{background:#101a14;color:#e2e9dd;font:16px monospace;padding:40px;max-width:850px}button{padding:15px;font:inherit}pre{white-space:pre-wrap;line-height:1.6}</style>
+<h1>Forest audio verification</h1><p>Renders the actual sound graph offline, including distance, stereo, pause, mute and resume.</p>
+<button id="run">Render and check audio</button><pre id="result">Ready</pre><audio id="preview" controls></audio>
+<script type="module">
+import {createForestSoundscape} from '../dist/forest-audio.js';
+document.querySelector('#run').onclick=async()=>{
+ const result=document.querySelector('#result');result.textContent='Rendering…';
+ try{
+  const rate=24000,ctx=new OfflineAudioContext(2,16*rate,rate),sound=createForestSoundscape(ctx);
+  const origin={x:0,y:1.65,z:0},forward={x:0,y:0,z:-1};
+  const scan={trees:[{x:3,y:0,z:-2,arrival:.3,seed:.2,strength:1},{x:-5,y:0,z:-5,arrival:1.1,seed:.7,strength:1},{x:7,y:0,z:1,arrival:1.7,seed:.5,strength:.7}],liquid:[{x:0,y:0,z:-1,arrival:0,seed:.3,strength:1},{x:-5,y:0,z:-6,arrival:.8,seed:.6,strength:.8},{x:6,y:0,z:-2,arrival:1.1,seed:.9,strength:.8}]};
+  sound.setEnabled(true);sound.pulse(scan,origin);sound.update({age:0,active:true,position:origin,forward});
+  const stops=[];
+  for(let step=1;step<64;step++){
+   const t=step/4;
+   stops.push(ctx.suspend(t).then(()=>{
+    sound.setEnabled(t<9||t>=9.75);
+    if(t>=5&&t<6){if(t===5)sound.pause();return ctx.resume()}
+    sound.update({age:t-Math.min(1,Math.max(0,t-5)),active:!(t>=5&&t<6)&&t<14.5,position:origin,forward});
+    return ctx.resume();
+   }));
+  }
+  const buffer=await ctx.startRendering();await Promise.all(stops);
+  const left=buffer.getChannelData(0),right=buffer.getChannelData(1);let peak=0,power=0,difference=0;
+  for(let i=0;i<left.length;i++){peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));power+=(left[i]**2+right[i]**2)/2;difference+=Math.abs(left[i]-right[i]);}
+  const rms=(start,end)=>{let sum=0;for(let i=Math.floor(start*rate);i<end*rate;i++)sum+=(left[i]**2+right[i]**2)/2;return Math.sqrt(sum/((end-start)*rate))};
+  const checks={quietHeadroom:peak>.001&&peak<.10,stereo:difference>.01,pause:rms(5.65,5.95)<.00015,mute:rms(9.3,9.65)<.00002,resume:rms(6.1,8.5)>.00015,settled:rms(15.7,16)<.0001,boundedVoices:sound.metrics.maxVoices<=8};
+  if(Object.values(checks).some(v=>!v))throw new Error(JSON.stringify({checks,peak,rms:Math.sqrt(power/left.length),pause:rms(5.65,5.95),mute:rms(9.3,9.65),settled:rms(15.7,16),metrics:sound.metrics},null,2));
+  result.textContent='PASS\n'+JSON.stringify({checks,peak,rms:Math.sqrt(power/left.length),metrics:sound.metrics},null,2);
+  const wav=new ArrayBuffer(44+left.length*4),view=new DataView(wav),text=(at,s)=>{for(let i=0;i<s.length;i++)view.setUint8(at+i,s.charCodeAt(i))};
+  text(0,'RIFF');view.setUint32(4,36+left.length*4,true);text(8,'WAVE');text(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,rate,true);view.setUint32(28,rate*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);text(36,'data');view.setUint32(40,left.length*4,true);
+  for(let i=0;i<left.length;i++){view.setInt16(44+i*4,Math.max(-1,Math.min(1,left[i]))*32767,true);view.setInt16(46+i*4,Math.max(-1,Math.min(1,right[i]))*32767,true)}
+  document.querySelector('#preview').src=URL.createObjectURL(new Blob([wav],{type:'audio/wav'}));
+ }catch(error){result.textContent='FAIL\n'+error.stack}
+};
+</script></html>

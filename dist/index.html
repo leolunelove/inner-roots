@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080e0c"><meta name="description" content="A quiet first-person journey through three living forest mazes. Inner Roots, first playable demo."><title>Inner Roots — Gameplay Demo</title><link rel="stylesheet" href="style.css?v=inner-roots-demo1-final"><link rel="icon" href="icon.svg?v=inner-roots-demo1" type="image/svg+xml"></head>
+<body>
+<canvas id="world" tabindex="0" aria-label="First-person forest maze. Use W A S D to walk, mouse to look, and Space to scan."></canvas>
+<div class="vignette"></div><div class="grain"></div>
+<header><a class="brand" href="#" aria-label="Inner Roots main menu"><img src="icon.svg?v=inner-roots-demo1" alt="" class="brand-symbol"> INNER ROOTS</a><div class="header-right"><span id="sessionLabel">GAMEPLAY DEMO</span><button id="sound" aria-label="Enable sound" title="Sound">SOUND <span>OFF</span></button><button id="pause" aria-label="Pause game" hidden>Ⅱ</button></div></header>
+<main id="home" class="panel home">
+<p class="eyebrow demo-kicker">A FOREST THAT REMEMBERS</p>
+<h1 class="sr-only">Inner Roots</h1><img class="game-logo" src="assets/inner-roots-logo.svg" alt="Inner Roots">
+<p class="intro">Something is awake beneath your feet.<br>Borrow its light. Remember the way out.</p>
+<div class="groves" role="group" aria-label="Choose a maze">
+<button class="grove selected" data-level="0" aria-pressed="true"><span class="grove-art hollow-art"><i></i><i></i><i></i></span><span class="grove-top"><b>The Hollow</b><span class="grove-status">OLD GROWTH</span></span><span class="grove-copy">Moss, earth &amp; warm veins</span><span class="grove-best" id="best0">Not yet explored</span></button>
+<button class="grove" data-level="1" aria-pressed="false"><span class="grove-art drowned-art"><i></i><i></i><i></i></span><span class="grove-top"><b>The Drowned</b><span class="grove-status">BLACK WATER</span></span><span class="grove-copy">Pale trunks &amp; flooded roots</span><span class="grove-best" id="best1">Not yet explored</span></button>
+<button class="grove" data-level="2" aria-pressed="false"><span class="grove-art cinder-art"><i></i><i></i><i></i></span><span class="grove-top"><b>The Cinder</b><span class="grove-status">AFTER THE FIRE</span></span><span class="grove-copy">Ash, broken crowns &amp; embers</span><span class="grove-best" id="best2">Not yet explored</span></button>
+</div>
+<button class="primary" id="start">Enter The Hollow</button>
+<div class="menu-links"><button id="infoButton">How to play</button><span>·</span><span id="demoProgress">Three mazes. Three ways home.</span></div>
+<p class="headphones">Best explored with headphones · Quiet exploration · No jump scares</p>
+</main>
+<div id="hud" hidden>
+<div class="compass"><span>W</span><div class="compass-center"><div id="bearingTicks">╵ · ╵ · ╵ · ╵ · ╵ · ╵ · ╵</div><b id="bearing">N</b></div><span>E</span></div>
+<div class="objective"><span class="eyebrow" id="chapter">THE HOLLOW</span><div id="objectiveText">Recover the three signals</div><div id="relics"><i></i><i></i><i></i><span id="relicCount">0 / 3</span></div></div>
+<div class="crosshair"><i></i></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="bottom-left"><span class="eyebrow">TIME IN THE GROVE</span><div id="timer">00:00</div><button id="mapButton">M · Field map</button></div>
+<div class="scanner"><button id="scan"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="13"/><circle cx="20" cy="20" r="6"/><path d="M20 3v9M20 28v9M3 20h9M28 20h9"/></svg><span id="scanText">Pulse ready</span><kbd>SPACE</kbd></button><div class="charge"><i id="charge"></i></div></div>
+<div class="bottom-hint" id="bottomHint">W A S D <span>walk</span> &nbsp;·&nbsp; MOUSE <span>look</span> &nbsp;·&nbsp; CLICK <span>scan</span> &nbsp;·&nbsp; SHIFT <span>run</span> &nbsp;·&nbsp; ESC <span>pause</span></div>
+<div class="touch-controls"><div id="stick"><i></i></div><div class="touch-note">DRAG RIGHT SIDE TO LOOK</div></div>
+</div>
+<aside id="mapPanel" hidden><div class="map-heading"><div><span class="eyebrow">YOUR FOOTSTEPS, REMEMBERED</span><h2>Field map</h2></div><button id="closeMap" aria-label="Close map">×</button></div><canvas id="map" width="440" height="440" aria-label="Map of the explored maze"></canvas><p><i></i> You <span>◇ Signal</span><span>▯ Exit</span></p><small>Scans chart the route beyond your footsteps.</small></aside>
+<section id="pausePanel" class="modal" hidden><div><span class="eyebrow">TAKE A BREATH</span><h2>The forest<br>can wait.</h2><p>Continue to resume mouse look. Escape releases the cursor.</p><button id="resume" class="primary">Continue exploring <span>＋</span></button><button id="restart" class="text-button">Restart this maze</button><button class="text-button menu-return" id="pauseMenu">Return to main menu</button><div class="pause-controls">WASD to walk · Mouse to look<br>Click or Space to scan · M for map<br>Arrow keys also move and turn</div></div></section>
+<section id="winPanel" class="modal" hidden><div><span class="eyebrow" id="winEyebrow">GROVE COMPLETE</span><h2 id="winTitle">A way<br><em>through.</em></h2><p id="winCopy"></p><div class="win-stats"><div><span>EXPLORATION TIME</span><b id="winTime"></b></div><div><span>SCAN PULSES</span><b id="winScans"></b></div></div><button id="next" class="primary">Enter The Drowned</button><button class="text-button" id="winMenu">Return to main menu</button><p class="quiet" id="winFootnote">One grove remembers you. Two are still waiting.</p></div></section>
+<section id="infoPanel" class="modal" hidden aria-label="How to play"><div><span class="eyebrow">BENEATH THE SURFACE</span><h2>Wake the roots.<br><em>Find your way.</em></h2><p>Each grove holds three pale signals. Recover them, then reach the wooden gate. Your flashlight is weak; send a pulse into the roots to reveal the path. Watch the route before the darkness returns.</p><div class="controls-grid"><span>W A S D</span><b>Walk &amp; strafe</b><span>MOUSE</span><b>Look around</b><span>CLICK / SPACE</span><b>Send a pulse</b><span>SHIFT</span><b>Run</b><span>M</span><b>Explored field map</b><span>ESC</span><b>Pause &amp; release mouse</b></div><p class="quiet">Three distinct mazes. No enemies, jump scares or time limit.<br>Finished groves and best times are saved on this device.<br>Touch controls are available on phones.</p><button id="closeInfo" class="primary">Back to the roots</button><p class="credits">Created by Leo Lune · Demo v1.0<br>Three.js · Original procedural world, vector identity &amp; sound<br>Inspired by the forest light study by 011 / @nomoreluca.</p></div></section>
+<footer id="homeFooter"><span>LEO LUNE</span><span>FIRST PLAYABLE DEMO · v1.0</span></footer>
+<div id="loading"><img src="icon.svg?v=inner-roots-demo1" alt="" width="58" height="76"><p>Waking the roots…</p></div>
+<script type="module" src="game.js?v=inner-roots-demo1"></script>
+</body></html>
