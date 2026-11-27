@@ -3,13 +3,27 @@ export const CELL=3.7;
 export function createMaze(seed=4201,size=5){
  const rand=random(seed),n=size*2+1,grid=Array.from({length:n},()=>Array(n).fill(1));
  function carve(x,z){grid[z][x]=0;const dirs=[[2,0],[-2,0],[0,2],[0,-2]];for(let i=dirs.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[dirs[i],dirs[j]]=[dirs[j],dirs[i]]}for(const [dx,dz]of dirs){const nx=x+dx,nz=z+dz;if(nx>0&&nz>0&&nx<n-1&&nz<n-1&&grid[nz][nx]){grid[z+dz/2][x+dx/2]=0;carve(nx,nz)}}}carve(1,1);
+ // A few long reconnecting trails create decisions without dissolving the maze.
+ const loopCandidates=[];
+ for(let z=1;z<n-1;z++)for(let x=1;x<n-1;x++)if(grid[z][x]&&((x+z)%2)&&x+z>5){
+  const horizontal=z%2===1,a={x:x-(horizontal?1:0),z:z-(horizontal?0:1)},b={x:x+(horizontal?1:0),z:z+(horizontal?0:1)};
+  if(grid[a.z]?.[a.x]===0&&grid[b.z]?.[b.x]===0)loopCandidates.push({x,z,a,b,priority:rand()});
+ }
+ loopCandidates.sort((a,b)=>a.priority-b.priority);
+ const loops=[];
+ for(const candidate of loopCandidates){
+  const distance=pathBetween({grid},candidate.a,candidate.b).length-1;
+  if(distance<10||distance>28||loops.some(p=>Math.hypot(p.x-candidate.x,p.z-candidate.z)<4))continue;
+  grid[candidate.z][candidate.x]=0;loops.push({x:candidate.x,z:candidate.z});
+  if(loops.length>=Math.max(1,size-4))break;
+ }
  const start={x:1,z:1},dist=Array.from({length:n},()=>Array(n).fill(-1)),queue=[start];dist[1][1]=0;
  for(let i=0;i<queue.length;i++){const p=queue[i];for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz;if(grid[z]?.[x]===0&&dist[z][x]<0){dist[z][x]=dist[p.z][p.x]+1;queue.push({x,z})}}}
  const sorted=queue.filter(p=>p.x%2&&p.z%2).sort((a,b)=>dist[b.z][b.x]-dist[a.z][a.x]);const exit=sorted[0];
  const dead=sorted.filter(p=>p!==exit&&[[1,0],[-1,0],[0,1],[0,-1]].filter(([x,z])=>grid[p.z+z]?.[p.x+x]===0).length===1);
  const targets=[];const near=queue.filter(p=>dist[p.z][p.x]>=4&&dist[p.z][p.x]<=7&&p.x%2&&p.z%2)[0];if(near)targets.push(near);
  for(const p of [...dead,...sorted]){if(targets.length===3)break;if(p!==exit&&dist[p.z][p.x]>=4&&!targets.some(t=>t.x===p.x&&t.z===p.z)&&targets.every(t=>Math.hypot(t.x-p.x,t.z-p.z)>3))targets.push(p)}
- const maze={seed,n,grid,start,exit,targets,dist};
+ const maze={seed,n,grid,start,exit,targets,dist,loops};
  buildTrailSpace(maze);
  return maze;
 }
@@ -22,7 +36,20 @@ function buildTrailSpace(maze){
   widths[z][x]=.76+smooth(-.7,.7,band)*1.04;
  }
  widths[1][1]=1.2;
- for(let z=0;z<n;z++)for(let x=0;x<n;x++)if(!grid[z][x])for(const [dx,dz]of [[1,0],[0,1]])if(grid[z+dz]?.[x+dx]===0)shapes.push({ax:x*CELL,az:z*CELL,bx:(x+dx)*CELL,bz:(z+dz)*CELL,wa:widths[z][x],wb:widths[z+dz][x+dx]});
+ // Ground boundaries bend between the same reliable navigation nodes. The
+ // shallow offsets retain full-body clearance along every nerve graph edge.
+ const centres=Array.from({length:n},()=>Array(n));
+ for(let z=0;z<n;z++)for(let x=0;x<n;x++)if(!grid[z][x])centres[z][x]={x:x*CELL+(r()-.5)*.15,z:z*CELL+(r()-.5)*.15};
+ centres[1][1]={x:CELL,z:CELL};
+ for(let z=0;z<n;z++)for(let x=0;x<n;x++)if(!grid[z][x])for(const [dx,dz]of [[1,0],[0,1]])if(grid[z+dz]?.[x+dx]===0){
+  const a=centres[z][x],b=centres[z+dz][x+dx],bend=(r()-.5)*.48;
+  let previous={...a,width:widths[z][x]};
+  for(let i=1;i<=5;i++){
+   const t=i/5,curve=Math.sin(t*Math.PI)*bend,ease=t*t*(3-2*t);
+   const next={x:a.x+(b.x-a.x)*t-dz*curve,z:a.z+(b.z-a.z)*t+dx*curve,width:widths[z][x]+(widths[z+dz][x+dx]-widths[z][x])*ease};
+   shapes.push({ax:previous.x,az:previous.z,bx:next.x,bz:next.z,wa:previous.width,wb:next.width});previous=next;
+  }
+ }
  const candidates=[];
  for(let z=1;z<n-1;z+=2)for(let x=1;x<n-1;x+=2)if(dist[z][x]>=4)candidates.push({x,z,priority:r()});
  candidates.sort((a,b)=>b.priority-a.priority);
@@ -36,12 +63,12 @@ function buildTrailSpace(maze){
  for(const room of rooms)shapes.push({ax:room.x*CELL,az:room.z*CELL,bx:room.x*CELL,bz:room.z*CELL,wa:room.radius,wb:room.radius,clearing:true});
  const bins=Array.from({length:n*n},()=>[]);
  shapes.forEach((shape,index)=>{
-  const reach=Math.max(shape.wa,shape.wb)+CELL*.8;
+  const reach=Math.max(shape.wa,shape.wb)+2.05;
   const minX=Math.max(0,Math.floor((Math.min(shape.ax,shape.bx)-reach)/CELL+.5)),maxX=Math.min(n-1,Math.floor((Math.max(shape.ax,shape.bx)+reach)/CELL+.5));
   const minZ=Math.max(0,Math.floor((Math.min(shape.az,shape.bz)-reach)/CELL+.5)),maxZ=Math.min(n-1,Math.floor((Math.max(shape.az,shape.bz)+reach)/CELL+.5));
   for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++)bins[z*n+x].push(index);
  });
- maze.space={shapes,bins,widths,rooms,phase};
+ maze.space={shapes,bins,widths,rooms,phase,centres};
 }
 
 export function sampleTrail(maze,x,z){

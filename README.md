@@ -1,6 +1,6 @@
 ![Inner Roots](docs/cover.svg)
 
-# Inner Roots — Gameplay Demo v1.2
+# Inner Roots — Gameplay Demo v1.3
 
 **[Play in your browser](https://leolunelove.github.io/inner-roots/)** · [Download demo v1.0](https://github.com/leolunelove/inner-roots/releases/tag/v1.0.0-demo.1)
 
@@ -15,6 +15,14 @@ A quiet first-person exploration game about finding your way through a living fo
 | The Cinder | The largest maze: charred trees, tangled thickets and ember light |
 
 The Hollow, Drowned and Cinder now use 6×6, 7×7 and 8×8 room layouts. Trails taper between approximately 1.5 and 3.6 metres wide, opening into larger glades. Dense hedges alternate with tree-lined earth banks, and the field map follows the actual trail shapes. Best times start fresh for these larger layouts.
+
+## Cinematic interface and living places · v1.3
+
+A centered cinematic chapter menu, readable text-led actions, quieter HUD and full-screen field atlas now share one visual language. The atlas charts the actual winding trails, canopy and reed symbols, landmarks and walking breadcrumbs. It supports zoom buttons, wheel zoom and + / − / 0 keyboard controls; unseen routes remain hidden. Menu and overlay controls support keyboard focus.
+
+The three areas span approximately 48, 56 and 63 metres. Trails now bend between junctions, with a few deliberate reconnecting routes alongside dead ends and open glades. Hollow gains root cairns, a broken elder stump, listening stones, fallen timber, fungi and ferns. Drowned gains sunken flood walls, old mooring posts, wetland markers and gently moving reeds. Cinder gains split burned crowns, charcoal branches and ash-stone rings. Large props stay outside the walking boundary.
+
+Returning to the menu or restarting reuses the existing world. Chapter changes show a themed loading transition. Shared tree/depth materials and stable light counts reduce shader churn, while new environmental detail uses less than 0.5 MiB of geometry/instance buffers per grove. Because reconnecting trails change routes and travel times, v1.3 keeps a new set of completion records; earlier records are left untouched in local storage.
 
 ## Visual update · v1.2
 
@@ -62,7 +70,11 @@ For v1.1, the expanded Hollow was completed with keyboard movement in the browse
 
 For v1.2, the new menu, HUD, Hollow forest, root pulse, field map, pause and signal collection were reviewed in real Safari/Chrome sessions. Later review encountered graphics-context failures affecting both the local revision and unchanged live v1.1; final Drowned/Cinder rendering, mobile layout and a complete three-grove rerun remain outstanding. Geometry and landmark checks passed for all three themes. Fern/litter instancing reduced Hollow geometry buffers from 126 to 26 MiB and Drowned from 71 to 27 MiB during comparison with the initial visual revision.
 
-The route suite covers 300 generated mazes and 377,244 collision/collection samples. Additional checks cover propagation, monotonic surges, quiet PCM textures, silent boundaries and visual/audio timing. Serve the project root and open `qa/audio.html` to render the actual sound graph offline and check stereo, headroom, mute, pause and resume. Digital output was verified; physical-headphone listening has not been reviewed.
+For v1.3, the Hollow menu, walking, pulse, pause and explored atlas/zoom were exercised in the real browser before graphics failure interrupted the Drowned review. The UI and atlas were additionally rendered in an isolated layout fixture at 1280 × 720 and 390 × 844 without horizontal overflow; that fixture does not verify 3D rendering. All three new area-detail sets passed finite-geometry, landmark and route-clearance checks. Four sequential construction checks confirmed stable pooled tree/depth material identities with current theme colours and tree IDs.
+
+The browser later failed to create graphics contexts for both the local revision and unchanged live v1.2. The final Drowned/Cinder visuals and full three-grove playthrough remain unverified in this session. Resource reuse and graceful graphics-error handling are implemented, but the underlying browser graphics failure is not claimed resolved.
+
+The current route suite covers 300 generated mazes and 320,670 collision/collection samples. The spatial suite covers 75 varied layouts and 286,426 full-body samples, reconnecting cycles, curved trail geometry, clearings and wall integrity. Additional checks cover propagation, monotonic surges, quiet PCM textures, silent boundaries and visual/audio timing. Serve the project root and open `qa/audio.html` to render the actual sound graph offline and check stereo, headroom, mute, pause and resume. Digital output was verified; physical-headphone listening has not been reviewed.
 
 ## Source and credits
 
@@ -72,4 +84,4 @@ Game, original vector logo, procedural environments and synthesized sound: **Leo
 
 Visual inspiration: the forest-light study by **011 / @nomoreluca**, [shared by Three.js](https://x.com/threejs/status/2123549786272100698). This demo is an original interpretation.
 
-This is gameplay demo version `1.2.0-demo.4`. Original project code and assets carry no additional license grant; the third-party Three.js license remains applicable to its files.
+This is gameplay demo version `1.3.0-demo.1`. Original project code and assets carry no additional license grant; the third-party Three.js license remains applicable to its files.

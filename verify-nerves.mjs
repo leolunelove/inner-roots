@@ -7,7 +7,7 @@ let unequalArrivals=false;
 for(let seed=1;seed<=100;seed++){
  const maze=createMaze(seed),graph=createNerveGraph(maze);
  assert.equal(graph.nodes.length,maze.grid.flat().filter(v=>v===0).length);
- assert.equal(graph.edges.length,graph.nodes.length-1,'Perfect maze stays a connected branching tree');
+ assert.equal(graph.edges.length,graph.nodes.length-1+maze.loops.length,'The nerve graph preserves every deliberate reconnecting trail');
  for(const edge of graph.edges){
   const a=graph.nodes[edge.a],b=graph.nodes[edge.b];assert.equal(Math.abs(a.x-b.x)+Math.abs(a.z-b.z),1,'Nerves connect adjacent walkable cells');
   assert.equal(edgeTravelTime(edge,0),0);

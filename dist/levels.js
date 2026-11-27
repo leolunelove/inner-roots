@@ -1,4 +1,4 @@
-export const DEMO_VERSION='1.2.0-demo.4';
+export const DEMO_VERSION='1.3.0-demo.1';
 export const LEVELS=[
  {id:'hollow',name:'The Hollow',seed:4201,size:6,description:'Old growth. Warm veins. Something listening.',accent:'#d4dfaa',background:'#010402',fog:'#101d15',fogDensity:.037,scan:'#b4cdb3',vein:'#f2c47a',soil:'#e5dece',bark:'#b9b5a6',rock:'#aaa793',leaf:'#ffffff',canopy:'#819269',root:'#756044',twig:'#4e3e2d',hedge:'#7b9259',bankHeight:2.25,treesPerCell:3,trunkMin:6,trunkRange:8,canopyCount:45,fernCount:1250,litterCount:9200},
  {id:'drowned',name:'The Drowned',seed:8607,size:7,description:'Black water. Pale trunks. Roots beneath the surface.',accent:'#b1d5d2',background:'#010406',fog:'#193238',fogDensity:.053,scan:'#9bc1ce',vein:'#9ce4db',soil:'#a1b1a5',bark:'#b7c8c2',rock:'#788f91',leaf:'#8baba0',canopy:'#627e7a',root:'#6c8981',twig:'#8b9c80',hedge:'#688d79',bankHeight:1.9,treesPerCell:3,trunkMin:8,trunkRange:5,canopyCount:22,fernCount:600,litterCount:4200},

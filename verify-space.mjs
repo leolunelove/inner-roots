@@ -8,6 +8,12 @@ for(const level of LEVELS)for(let variation=0;variation<25;variation++){
  const widths=maze.space.widths.flat().filter(Boolean);
  assert(Math.min(...widths)<1&&Math.max(...widths)>1.5,'Every maze has narrow and broad corridors');
  assert(maze.space.rooms.length>=2,'Clearings break up the corridors');
+ assert(maze.loops.length>=1,'Every area contains a reconnecting route');
+ let open=0,edges=0;
+ for(let z=0;z<maze.n;z++)for(let x=0;x<maze.n;x++)if(!maze.grid[z][x]){open++;if(maze.grid[z]?.[x+1]===0)edges++;if(maze.grid[z+1]?.[x]===0)edges++}
+ assert.equal(edges-open+1,maze.loops.length,'Each reconnection adds exactly one navigable cycle');
+ for(const loop of maze.loops){assert.equal(maze.grid[loop.z][loop.x],0);assert(maze.dist[loop.z][loop.x]>=0,'New lanes are connected to the start')}
+ assert(maze.space.shapes.some(s=>Math.abs(s.ax-s.bx)>.02&&Math.abs(s.az-s.bz)>.02),'Physical trails bend between navigation nodes');
  for(let z=0;z<maze.n;z++)for(let x=0;x<maze.n;x++)if(maze.grid[z][x])assert(!walkable(maze,x*CELL,z*CELL),'A widened lane cannot open the centre of a closed wall');
  let current=maze.start;
  for(const destination of [...maze.targets,maze.exit]){

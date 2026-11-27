@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {CELL,random} from './maze.js?v=1.2.0-demo.4';
+import {CELL,random} from './maze.js?v=1.3.0-demo.1';
 
 // The relics and the way out belong to the same root system as the forest.
 // Merge their static pieces by material, so the extra silhouette costs little.

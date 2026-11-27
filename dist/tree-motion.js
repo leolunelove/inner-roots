@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {PULSE_DURATION,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.2.0-demo.4';
+import {PULSE_DURATION,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.3.0-demo.1';
 
 // Shared by bark, attached veins, canopy, surface points and shadow depth.
 export const treeMotionGLSL=`

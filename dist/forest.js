@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js?v=1.2.0-demo.4';
-import {scanFieldGLSL} from './scan-field.js?v=1.2.0-demo.4';
-import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js?v=1.2.0-demo.4';
+import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js?v=1.3.0-demo.1';
+import {scanFieldGLSL} from './scan-field.js?v=1.3.0-demo.1';
+import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js?v=1.3.0-demo.1';
 
 const atlas=new THREE.TextureLoader().load('./assets/forest-materials-v2.png');
 atlas.colorSpace=THREE.SRGBColorSpace;
@@ -144,6 +144,36 @@ export function createForestMaterials(uniforms){
  return {terrain,bark,root,rock,foliage,canopy,twig,water,hedge,hedgeLeaf};
 }
 
+const motionMaterialPools=new WeakMap();
+let forestBuildId=0;
+function pooledMotionMaterial(base,motion){
+ // The tree ID lives on the geometry; each spatial patch can share a material.
+ // Keep its programs alive when changing groves instead of destroying and
+ // recompiling the same reveal and depth shaders for every new world.
+ let uniformPools=motionMaterialPools.get(base);
+ if(!uniformPools){uniformPools=new WeakMap();motionMaterialPools.set(base,uniformPools)}
+ let variants=uniformPools.get(motion.uniforms);
+ if(!variants){variants=new Map();uniformPools.set(motion.uniforms,variants)}
+ let entry=variants.get(motion.kind);
+ if(!entry){
+  const material=revealMaterial(base.clone(),motion.uniforms,motion.kind,true);
+  const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:base.map,alphaTest:base.alphaTest,side:base.side});
+  depth.onBeforeCompile=shader=>applyTreeMotionShader(shader,motion.uniforms);
+  depth.customProgramCacheKey=()=>`tree-reaction-depth-v1`;
+  depth.userData.persistent=true;
+  entry={material,depth,build:-1,version:base.version};variants.set(motion.kind,entry);
+ }
+ if(entry.build!==forestBuildId){
+  // Theme colours and texture references belong to the current base material.
+  // copy() preserves our shader hooks and does not invalidate unchanged flags.
+  entry.material.copy(base);entry.material.userData.unique=false;entry.material.userData.persistent=true;
+  entry.depth.map=base.map;entry.depth.alphaMap=base.alphaMap;entry.depth.alphaTest=base.alphaTest;entry.depth.side=base.side;
+  if(entry.version!==base.version){entry.material.needsUpdate=true;entry.depth.needsUpdate=true;entry.version=base.version}
+  entry.build=forestBuildId;
+ }
+ return entry;
+}
+
 function instance(world,geometry,material,matrices,shadows=false,motion=null,partition=true){
  // Bound each grove section separately so the view and flashlight shadow camera
  // can cull the rest of a large maze instead of drawing every tree and leaf.
@@ -159,23 +189,24 @@ function instance(world,geometry,material,matrices,shadows=false,motion=null,par
   return group;
  }
  if(!matrices.length)return;
+ let motionVariant=null;
  if(motion){
   if(geometry.hasAttribute('aTreeId'))geometry=geometry.clone();
   geometry.setAttribute('aTreeId',new THREE.InstancedBufferAttribute(new Float32Array(motion.ids),1));
-  material=revealMaterial(material.clone(),motion.uniforms,motion.kind,true);material.userData.unique=true;
+  motionVariant=pooledMotionMaterial(material,motion);material=motionVariant.material;
  }
  const mesh=new THREE.InstancedMesh(geometry,material,matrices.length);
  matrices.forEach((matrix,i)=>{mesh.setMatrixAt(i,matrix);if(matrix.forestColor)mesh.setColorAt(i,matrix.forestColor)});
  if(motion&&shadows){
-  const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:material.map,alphaTest:material.alphaTest,side:material.side});
-  depth.onBeforeCompile=shader=>applyTreeMotionShader(shader,motion.uniforms);
-  depth.customProgramCacheKey=()=>`tree-reaction-depth-v1`;
-  mesh.customDepthMaterial=depth;
+  // The pool is keyed by the original material, so retain the entry selected
+  // above rather than creating a second pool for its derived material.
+  mesh.customDepthMaterial=motionVariant.depth;
  }
  mesh.castShadow=shadows;mesh.receiveShadow=true;world.add(mesh);return mesh;
 }
 
 export function buildForest(world,maze,height,materials,uniforms,theme){
+ forestBuildId++;
  const r=random(maze.seed+53),extent=maze.n*CELL,half=extent/2-CELL/2;
  function trailWearAt(x,z){
   const sample=sampleTrail(maze,x,z),across=sample.distance/Math.max(.01,sample.radius);

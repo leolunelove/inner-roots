@@ -1,10 +1,10 @@
 import * as THREE from './vendor/three.module.js';
-import {CELL,random} from './maze.js?v=1.2.0-demo.4';
-import {ARRIVAL_WINDOW,PULSE_DURATION} from './pulse-timing.js?v=1.2.0-demo.4';
-import {createNerveGraph,edgeTravelTime} from './nerve-graph.js?v=1.2.0-demo.4';
-import {forestAtlas} from './forest.js?v=1.2.0-demo.4';
-import {scanFieldGLSL} from './scan-field.js?v=1.2.0-demo.4';
-import {treeMotionGLSL} from './tree-motion.js?v=1.2.0-demo.4';
+import {CELL,random} from './maze.js?v=1.3.0-demo.1';
+import {ARRIVAL_WINDOW,PULSE_DURATION} from './pulse-timing.js?v=1.3.0-demo.1';
+import {createNerveGraph,edgeTravelTime} from './nerve-graph.js?v=1.3.0-demo.1';
+import {forestAtlas} from './forest.js?v=1.3.0-demo.1';
+import {scanFieldGLSL} from './scan-field.js?v=1.3.0-demo.1';
+import {treeMotionGLSL} from './tree-motion.js?v=1.3.0-demo.1';
 
 export function createNervousSystem(world,maze,height,uniforms,forest){
  const {trunks,reactions}=forest,treeRoots=[];let currentTree=-1;

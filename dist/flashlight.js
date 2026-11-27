@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {random} from './maze.js?v=1.2.0-demo.4';
+import {random} from './maze.js?v=1.3.0-demo.1';
 
 // Linear light intensity, projected by the real spotlight onto receiving surfaces.
 // An off-centre filament, uneven reflector and weak spill avoid a filled light disc.
@@ -80,7 +80,7 @@ export function createFlashlight(scene,camera){
  return {
   reset(){initialized=false;activity=0;stride=0},
   update(dt,time,moving,mode){
-   const playing=mode==='playing';held.visible=playing;bodyFill.visible=playing;
+   const playing=mode==='playing';held.visible=playing;bodyFill.intensity=playing?.28:0;
    activity=THREE.MathUtils.damp(activity,playing&&moving?1:0,8,dt);
    stride+=dt*(moving?9:1.5);
    const handX=Math.sin(stride)*.009*activity+Math.sin(time*.81)*.0018;
