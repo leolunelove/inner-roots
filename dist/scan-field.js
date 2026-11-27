@@ -1,4 +1,4 @@
-import {PULSE_DURATION,ARRIVAL_WINDOW,LIQUID_SLOWDOWN} from './pulse-timing.js?v=1.1.0-demo.1';
+import {PULSE_DURATION,ARRIVAL_WINDOW,LIQUID_SLOWDOWN} from './pulse-timing.js?v=1.2.0-demo.4';
 // Route-driven exposure under a viscous surface film. Rounded lobes, beads and
 // connecting necks replace the earlier sharp finger mask.
 export const scanFieldGLSL=`
@@ -27,7 +27,7 @@ export const scanFieldGLSL=`
   float local=age-route.r*${ARRIVAL_WINDOW.toFixed(1)};
   float h=max(0.,p.y-(route.g*4.-.25));
   float broad=traceNoise(vec3(p.x*.85,0.,p.z*.85));
-  float lateral=(p.x*.81+p.z*.59)*1.65+(broad-.5)*.45;
+  float lateral=(p.x*.81+p.z*.59)*1.65+(broad-.5)*1.35+sin(p.x*.63-p.z*.42)*.42;
   float cell=floor(lateral),within=fract(lateral)-.5;
   float seed=traceHash(vec3(cell,route.b*17.,7.));
   float cap=sqrt(max(0.,1.-pow(within/(.28+seed*.16),2.)));

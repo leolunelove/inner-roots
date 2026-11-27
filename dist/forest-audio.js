@@ -1,5 +1,5 @@
-import {random} from './maze.js?v=1.1.0-demo.1';
-import {PULSE_DURATION,LIQUID_SLOWDOWN,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.1.0-demo.1';
+import {random} from './maze.js?v=1.2.0-demo.4';
+import {PULSE_DURATION,LIQUID_SLOWDOWN,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.2.0-demo.4';
 
 const lengths={creak:.96,crack:.19,wet:3.6,wind:4};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));

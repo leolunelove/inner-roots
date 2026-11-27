@@ -1,1 +1,1 @@
-{"name":"inner-roots","version":"1.1.0-demo.1","private":true,"type":"module","scripts":{"test":"node verify.mjs && node verify-nerves.mjs && node verify-audio.mjs && node verify-demo.mjs && node verify-space.mjs","dev":"python3 -m http.server 5173 --directory dist"}}
+{"name":"inner-roots","version":"1.2.0-demo.4","private":true,"type":"module","scripts":{"test":"node verify.mjs && node verify-nerves.mjs && node verify-audio.mjs && node verify-demo.mjs && node verify-space.mjs","dev":"python3 -m http.server 5173 --directory dist"}}

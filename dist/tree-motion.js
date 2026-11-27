@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {PULSE_DURATION,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.1.0-demo.1';
+import {PULSE_DURATION,TREE_CONTRACTION_DELAY,TREE_HEIGHT_DELAY,TREE_ECHO_BASE,TREE_ECHO_SPREAD} from './pulse-timing.js?v=1.2.0-demo.4';
 
 // Shared by bark, attached veins, canopy, surface points and shadow depth.
 export const treeMotionGLSL=`
@@ -40,7 +40,7 @@ export function applyTreeMotionShader(shader,uniforms){
 export function createTreeReactions(trunks,height,uniforms){
  const data=new Float32Array(trunks.length*8),p=new THREE.Vector3();
  trunks.forEach((matrix,i)=>{
-  p.setFromMatrixPosition(matrix);const offset=i*8;
+  p.set(0,-.5,0).applyMatrix4(matrix);const offset=i*8;
   data.set([p.x,height(p.x,p.z),p.z,100,(i*.61803398875+.17)%1,0,0,0],offset);
  });
  const map=new THREE.DataTexture(data,2,trunks.length,THREE.RGBAFormat,THREE.FloatType);

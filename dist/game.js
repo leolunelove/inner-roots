@@ -1,11 +1,12 @@
 import * as THREE from './vendor/three.module.js';
-import {createMaze,random,CELL,walkable,pathClearance,hedgeDensity} from './maze.js?v=1.1.0-demo.1';
-import {buildForest,createForestMaterials} from './forest.js?v=1.1.0-demo.1';
-import {createFlashlight} from './flashlight.js?v=1.1.0-demo.1';
-import {createNervousSystem} from './nervous-system.js?v=1.1.0-demo.1';
-import {PULSE_RECHARGE} from './pulse-timing.js?v=1.1.0-demo.1';
-import {createForestSoundscape} from './forest-audio.js?v=1.1.0-demo.1';
-import {LEVELS,DEMO_VERSION} from './levels.js?v=1.1.0-demo.1';
+import {createMaze,random,CELL,walkable,pathClearance,hedgeDensity} from './maze.js?v=1.2.0-demo.4';
+import {buildForest,createForestMaterials} from './forest.js?v=1.2.0-demo.4';
+import {createFlashlight} from './flashlight.js?v=1.2.0-demo.4';
+import {createNervousSystem} from './nervous-system.js?v=1.2.0-demo.4';
+import {createSignals,createGate,updateLandmarks} from './landmarks.js?v=1.2.0-demo.4';
+import {PULSE_RECHARGE,PULSE_DURATION} from './pulse-timing.js?v=1.2.0-demo.4';
+import {createForestSoundscape} from './forest-audio.js?v=1.2.0-demo.4';
+import {LEVELS,DEMO_VERSION} from './levels.js?v=1.2.0-demo.4';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'})}catch(error){$('loading').innerHTML='<p>This forest needs WebGL to grow.<br>Please open it in a browser with graphics acceleration enabled.</p>';throw error}
@@ -16,14 +17,15 @@ const ambient=new THREE.HemisphereLight('#c5cbbf','#30261b',.025);scene.add(ambi
 const moon=new THREE.DirectionalLight('#d2d6c7',.012);moon.position.set(-10,24,-5);scene.add(moon);
 const flashlight=createFlashlight(scene,camera);
 const clock=new THREE.Clock();const keys=new Set();const pointUniforms={uPreview:{value:1},uEye:{value:new THREE.Vector3()},uDirection:{value:new THREE.Vector3()},uPulse:{value:-100},uOrigin:{value:new THREE.Vector3()},uNerveMap:{value:null},uVeinMap:{value:null},uForestSize:{value:1},uTreeMap:{value:null},uTreeCount:{value:1},uVeinTint:{value:new THREE.Color()},uScanTint:{value:new THREE.Color()},uTime:{value:0}};
-let maze,world,nerveNetwork,signals=[],gate,particles=[],discovered=new Set(),collected=0,mode='home',elapsed=0,pulses=0,charge=1,pulseAge=100,yaw=0,pitch=-.04,toastTimer=0,footstep=0,seed=4201,levelIndex=0,mapOpen=false;
+let maze,world,nerveNetwork,forestSurfaces,signals=[],gate,particles=[],discovered=new Set(),collected=0,mode='home',elapsed=0,pulses=0,charge=1,pulseAge=100,yaw=0,pitch=-.04,toastTimer=0,footstep=0,seed=4201,levelIndex=0,mapOpen=false;
 const player=new THREE.Vector3(CELL,1.65,CELL),lastFoot=new THREE.Vector3();let drag=null,stick={x:0,y:0},audio=null,soundOn=false,soundscape=null,lastScan=null;
 let records={};try{const saved=JSON.parse(localStorage.getItem('inner-roots-demo-v1.1')||'{}');for(const level of LEVELS){const record=saved[level.id];if(record&&Number.isFinite(record.time)&&record.time>0&&Number.isInteger(record.pulses)&&record.pulses>=0)records[level.id]=record}}catch{}
 const materials={...createForestMaterials(pointUniforms),metal:new THREE.MeshStandardMaterial({color:'#25342b',roughness:.65,metalness:.4}),glow:new THREE.MeshBasicMaterial({color:'#dddcb3'}),gate:new THREE.MeshStandardMaterial({color:'#84936d',roughness:.9,emissive:'#9acb55',emissiveIntensity:.1})};
 function terrainHeight(x,z){
  const clearance=pathClearance(maze,x,z),cover=hedgeDensity(maze,x,z);
- const peak=THREE.MathUtils.lerp(LEVELS[levelIndex].bankHeight,.32,THREE.MathUtils.smoothstep(cover,.35,.8));
- const h=peak*THREE.MathUtils.smoothstep(-clearance,.1,1.55);
+ const rolling=.67+.17*Math.sin(x*.23+Math.sin(z*.17))+.12*Math.sin(z*.31-x*.13);
+ const peak=THREE.MathUtils.lerp(LEVELS[levelIndex].bankHeight*rolling,.24,THREE.MathUtils.smoothstep(cover,.35,.8));
+ const h=peak*THREE.MathUtils.smoothstep(-clearance,.12,1.9);
  const bank=Math.min(1,h/.7);
  return h+bank*(Math.sin(x*3.1+Math.sin(z*2.7))*.11+Math.sin(z*6.1+x*4.2)*.045)+Math.sin(x*2.7+z*1.2)*.022+Math.sin(z*4-x*1.7)*.015;
 }
@@ -41,26 +43,14 @@ function makeWorld(){
  scene.background.set(level.background);scene.fog.color.set(level.fog);scene.fog.density=level.fogDensity;
  pointUniforms.uVeinTint.value.set(level.vein);pointUniforms.uScanTint.value.set(level.scan);
  for(const name of ['bark','root','rock','foliage','canopy','twig','terrain','hedge','hedgeLeaf'])materials[name].color.set(level[{foliage:'leaf',terrain:'soil',hedgeLeaf:'hedge'}[name]||name]);
- materials.hedgeLeaf.color.multiplyScalar(1.75);
+ materials.hedgeLeaf.color.lerp(new THREE.Color('#c7c2a1'),.46);
  document.documentElement.style.setProperty('--acid',level.accent);
  $('chapter').textContent=level.name.toUpperCase();
  world=new THREE.Group();scene.add(world);maze=createMaze(seed,level.size);const r=random(seed+200),extent=maze.n*CELL;
- const forest=buildForest(world,maze,terrainHeight,materials,pointUniforms,level);
+ const forest=buildForest(world,maze,terrainHeight,materials,pointUniforms,level);forestSurfaces=forest.surfacePoints;
  nerveNetwork=createNervousSystem(world,maze,terrainHeight,pointUniforms,forest);
- signals=maze.targets.map((t,i)=>{
-  const g=new THREE.Group();g.position.set(t.x*CELL,terrainHeight(t.x*CELL,t.z*CELL),t.z*CELL);world.add(g);
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(.26,.4,.6,7),materials.rock);base.position.y=.3;g.add(base);
-  const rod=new THREE.Mesh(new THREE.CylinderGeometry(.035,.04,.9,7),materials.metal);rod.position.y=.95;g.add(rod);
-  const core=new THREE.Mesh(new THREE.OctahedronGeometry(.16,0),materials.glow);core.position.y=1.5;g.add(core);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.31,.012,5,40),materials.glow);ring.position.y=1.5;g.add(ring);
-  const light=new THREE.PointLight('#e2dfba',.65,4,1.7);light.position.y=1.5;g.add(light);
-  return {...t,group:g,core,ring,light,found:false,index:i};
- });
- gate=new THREE.Group();gate.position.set(maze.exit.x*CELL,0,maze.exit.z*CELL);world.add(gate);
- for(const x of [-.9,.9]){const post=new THREE.Mesh(new THREE.BoxGeometry(.17,3,.23),materials.bark);post.position.set(x,1.5,0);gate.add(post)}
- const lintel=new THREE.Mesh(new THREE.BoxGeometry(2.1,.16,.23),materials.bark);lintel.position.y=3;gate.add(lintel);
- const doorMat=new THREE.MeshBasicMaterial({color:'#b9e59a',transparent:true,opacity:.07,side:THREE.DoubleSide});doorMat.userData.unique=true;const portal=new THREE.Mesh(new THREE.PlaneGeometry(1.6,2.6),doorMat);portal.position.y=1.3;gate.add(portal);gate.userData.portal=portal;
- const gl=new THREE.PointLight('#d1e9a5',1,10,1.5);gl.position.set(0,2,0);gate.add(gl);gate.userData.light=gl;
+ signals=createSignals(world,maze,terrainHeight,materials,level);
+ gate=createGate(world,maze,terrainHeight,materials,level);
  // Low guide stones give the starting trail a gentle invitation.
  for(let j=0;j<maze.n;j++)for(let i=0;i<maze.n;i++){if(maze.grid[j][i]===0&&r()>.65){const peb=addMesh(new THREE.IcosahedronGeometry(.12,0),materials.rock,i*CELL+(r()-.5)*2.6,.07,j*CELL+(r()-.5)*2.6);peb.scale.y=.4}}
  particles=[];
@@ -109,6 +99,12 @@ function drawMap(){
   }
  }
  ctx.restore();
+ // Faint survey marks give the field map a legible scale without revealing paths.
+ ctx.strokeStyle='#b4c99b15';ctx.lineWidth=.6;ctx.beginPath();
+ for(let i=0;i<=maze.n;i+=2){const at=pad+i*s;ctx.moveTo(at,pad);ctx.lineTo(at,pad+396);ctx.moveTo(pad,at);ctx.lineTo(pad+396,at)}ctx.stroke();
+ ctx.strokeStyle='#b4c99b38';ctx.strokeRect(pad,pad,396,396);
+ ctx.fillStyle='#a4b594';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText('N',220,14);
+ ctx.textAlign='left';ctx.fillStyle='#7f9370';ctx.fillText('INNER ROOTS / '+LEVELS[levelIndex].name.toUpperCase(),pad,434);
  for(const t of signals){if(!discovered.has(`${t.x},${t.z}`))continue;ctx.save();ctx.translate(pad+(t.x+.5)*s,pad+(t.z+.5)*s);ctx.rotate(Math.PI/4);ctx.strokeStyle=t.found?'#60734e':'#e3f3b7';ctx.lineWidth=2;ctx.strokeRect(-5,-5,10,10);ctx.restore()}if(discovered.has(`${maze.exit.x},${maze.exit.z}`)){ctx.strokeStyle=collected===3?'#e3f3b7':'#929e80';ctx.lineWidth=2;ctx.strokeRect(pad+(maze.exit.x+.25)*s,pad+(maze.exit.z+.15)*s,s*.5,s*.7)}const px=pad+(player.x/CELL+.5)*s,pz=pad+(player.z/CELL+.5)*s;ctx.save();ctx.translate(px,pz);ctx.rotate(-yaw);ctx.fillStyle='#e8f6bd';ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,6);ctx.lineTo(0,3);ctx.lineTo(-6,6);ctx.closePath();ctx.fill();ctx.restore()}
 function pulse(){if(mode!=='playing'||charge<.99)return;charge=0;pulses++;pulseAge=0;pointUniforms.uOrigin.value.copy(player);lastScan=nerveNetwork.pulse(player);for(const cell of lastScan.charted)discovered.add(`${cell.x},${cell.z}`);soundscape?.pulse(lastScan,player);if(mapOpen)drawMap();const left=signals.filter(s=>!s.found);const near=left.sort((a,b)=>Math.hypot(a.x*CELL-player.x,a.z*CELL-player.z)-Math.hypot(b.x*CELL-player.x,b.z*CELL-player.z))[0];if(near){const dist=Math.round(Math.hypot(near.x*CELL-player.x,near.z*CELL-player.z));toast(`Signal echo · ${dist} m away`,3)}else toast('All signals recovered. The exit is illuminated.',3)}
 function refreshMenu(){
@@ -135,7 +131,7 @@ function win(){
  $('winCopy').textContent=complete?'Three groves. Nine signals. You found your way through a living forest. Thank you for playing the first Inner Roots demo.':`You recovered all three signals in ${level.name}. The roots have one less secret.`;
  $('next').textContent=levelIndex<LEVELS.length-1?'Enter '+LEVELS[levelIndex+1].name:'Return to main menu';
  $('winMenu').hidden=levelIndex===LEVELS.length-1;
- $('winFootnote').textContent=complete?'End of gameplay demo · v1.1':`${completed} of 3 groves remembered. Each has a different way home.`;
+ $('winFootnote').textContent=complete?'End of gameplay demo · v1.2':`${completed} of 3 groves remembered. Each has a different way home.`;
  refreshMenu();tone(392,1,.04);setTimeout(()=>tone(523,1.5,.025),220);
 }
 function initAudio(){if(audio)return;audio=new (window.AudioContext||window.webkitAudioContext)();soundscape=createForestSoundscape(audio);if(lastScan)soundscape.pulse(lastScan,pointUniforms.uOrigin.value)}
@@ -202,11 +198,10 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
   camera.position.set(player.x,1.75,player.z);camera.rotation.set(-.03+Math.sin(t*.12)*.015,yaw+.14+Math.sin(t*.1)*.1,0);pulseAge+=dt;
  }
  flashlight.update(dt,t,keys.has('KeyW')||keys.has('KeyS')||keys.has('KeyA')||keys.has('KeyD')||keys.has('ArrowUp')||keys.has('ArrowDown')||Math.hypot(stick.x,stick.y)>.1,mode);
- const direction=new THREE.Vector3();camera.getWorldDirection(direction);pointUniforms.uEye.value.copy(camera.position);pointUniforms.uDirection.value.copy(direction);pointUniforms.uPulse.value=pulseAge;
+ const direction=new THREE.Vector3();camera.getWorldDirection(direction);pointUniforms.uEye.value.copy(camera.position);pointUniforms.uDirection.value.copy(direction);pointUniforms.uPulse.value=pulseAge;forestSurfaces.visible=pulseAge<=PULSE_DURATION;nerveNetwork.setActive(pulseAge<=PULSE_DURATION);
  soundscape?.update({age:pulseAge,active:mode==='playing',position:camera.position,forward:direction});
  // Scans reveal a moving band on actual surfaces; ambient light stays dark.
- for(const s of signals){if(s.found)continue;s.core.rotation.y=t*.5;s.core.position.y=1.5+Math.sin(t*1.8+s.index)*.07;s.ring.rotation.y=t*.3;s.light.intensity=.6+Math.sin(t*2)*.12}
- gate.userData.light.intensity=collected===3?14:1;gate.userData.portal.material.opacity=collected===3?.18+Math.sin(t)*.04:.035;
+ updateLandmarks(signals,gate,t,collected);
  for(const p of particles){p.mesh.position.y+=Math.sin(t+p.phase)*dt*.05;p.mesh.material.opacity=.25+Math.sin(t*1.5+p.phase)*.2}
  renderer.render(scene,camera);
 }

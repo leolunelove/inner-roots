@@ -1,4 +1,4 @@
-import {CELL,random} from './maze.js?v=1.1.0-demo.1';
+import {CELL,random} from './maze.js?v=1.2.0-demo.4';
 
 // Unequal time intervals and easing make the front hesitate, then surge.
 export function edgeTravelTime(edge,progress){

@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js?v=1.1.0-demo.1';
-import {scanFieldGLSL} from './scan-field.js?v=1.1.0-demo.1';
-import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js?v=1.1.0-demo.1';
+import {random,CELL,sampleTrail,pathClearance,hedgeDensity} from './maze.js?v=1.2.0-demo.4';
+import {scanFieldGLSL} from './scan-field.js?v=1.2.0-demo.4';
+import {treeMotionGLSL,applyTreeMotionShader,createTreeReactions} from './tree-motion.js?v=1.2.0-demo.4';
 
 const atlas=new THREE.TextureLoader().load('./assets/forest-materials-v2.png');
 atlas.colorSpace=THREE.SRGBColorSpace;
@@ -15,7 +15,48 @@ gradient.addColorStop(0,'#4d633b');gradient.addColorStop(.46,'#a6b477');gradient
 lc.fillStyle=gradient;lc.beginPath();lc.moveTo(64,4);lc.bezierCurveTo(3,68,5,172,64,249);lc.bezierCurveTo(113,164,125,71,64,4);lc.fill();
 lc.strokeStyle='#b2bd8580';lc.lineWidth=1.4;lc.beginPath();lc.moveTo(64,245);lc.quadraticCurveTo(56,116,64,8);lc.stroke();
 for(let i=1;i<13;i++){const y=22+i*16,w=Math.sin(y/256*Math.PI)*43;lc.lineWidth=.6;lc.beginPath();lc.moveTo(62,y+17);lc.quadraticCurveTo(62-w*.6,y+8,62-w,y-10);lc.moveTo(62,y+17);lc.quadraticCurveTo(62+w*.6,y+8,62+w,y-10);lc.stroke()}
+// Fine mottling and imperfect edges keep close leaves from reading as plastic.
+lc.globalCompositeOperation='source-atop';
+const leafRandom=random(581);
+for(let i=0;i<1900;i++){
+ lc.fillStyle=i%3?'rgba(18,31,12,.09)':'rgba(210,205,151,.10)';
+ lc.fillRect(leafRandom()*128,leafRandom()*256,.4+leafRandom()*1.7,.5+leafRandom()*2.6);
+}
+lc.globalCompositeOperation='source-over';
 const leafTexture=new THREE.CanvasTexture(leafCanvas);leafTexture.colorSpace=THREE.SRGBColorSpace;
+// A twig with several small leaves, rather than one oversized leaf per card.
+const sprigCanvas=document.createElement('canvas');sprigCanvas.width=sprigCanvas.height=256;
+const sc=sprigCanvas.getContext('2d'),sprigRandom=random(8471);
+sc.strokeStyle='#68604a';sc.lineWidth=1.5;
+sc.beginPath();sc.moveTo(124,255);sc.bezierCurveTo(145,171,103,84,137,9);sc.stroke();
+// Staggered lateral shoots and unequal leaf sizes avoid a repeated chevron.
+for(let i=0;i<12;i++){
+ const side=i%2?-1:1,y=231-i*17+(sprigRandom()-.5)*14,x=126+Math.sin(y*.024)*9;
+ const angle=side*(.65+sprigRandom()*.65),length=45+sprigRandom()*36,width=23+sprigRandom()*17;
+ const tipX=x+Math.sin(angle)*length*.43,tipY=y-Math.cos(angle)*length*.43;
+ sc.beginPath();sc.moveTo(x,y);sc.quadraticCurveTo(x+side*10,y-7,tipX,tipY);sc.stroke();
+ sc.save();sc.translate(tipX,tipY);sc.rotate(angle+(sprigRandom()-.5)*.55);
+ sc.drawImage(leafCanvas,-width/2,-length*.9,width,length);sc.restore();
+}
+const sprigPixels=sc.getImageData(0,0,256,256);
+for(let i=0;i<sprigPixels.data.length;i+=4){
+ const d=sprigPixels.data,luma=d[i]*.3+d[i+1]*.5+d[i+2]*.2;
+ d[i]=d[i]*.3+luma*.68;d[i+1]=d[i+1]*.3+luma*.7;d[i+2]=d[i+2]*.3+luma*.52;
+}
+sc.putImageData(sprigPixels,0,0);
+const sprigTexture=new THREE.CanvasTexture(sprigCanvas);sprigTexture.colorSpace=THREE.SRGBColorSpace;sprigTexture.anisotropy=4;
+// Layered shadowed leaves fill the shrub interior, including at grazing angles.
+const hedgeCanvas=document.createElement('canvas');hedgeCanvas.width=hedgeCanvas.height=512;
+const hc=hedgeCanvas.getContext('2d'),hr=random(3197);
+hc.fillStyle='#19251a';hc.fillRect(0,0,512,512);
+for(let i=0;i<1600;i++){
+ const x=hr()*512,y=hr()*512,w=12+hr()*16,len=22+hr()*32;
+ hc.save();hc.translate(x,y);hc.rotate(hr()*Math.PI*2);hc.globalAlpha=.6+hr()*.4;
+ hc.shadowColor='#040b06';hc.shadowBlur=3;hc.shadowOffsetY=2;
+ hc.drawImage(leafCanvas,-w/2,-len/2,w,len);hc.restore();
+}
+const hedgeTexture=new THREE.CanvasTexture(hedgeCanvas);hedgeTexture.colorSpace=THREE.SRGBColorSpace;hedgeTexture.anisotropy=4;
+
 
 function revealMaterial(material,uniforms,kind=-1,treeMotion=false){
  material.onBeforeCompile=shader=>{
@@ -44,9 +85,9 @@ function revealMaterial(material,uniforms,kind=-1,treeMotion=false){
   if(kind>=0){
    let sampling=kind===0?`vec4 litter=forestTriplanar(vForestWorld*.43,vec2(0.,.5));
     vec4 moss=forestTriplanar(vForestWorld*.51,vec2(0.));
-    float mossMix=smoothstep(.22,2.3,vForestWorld.y)*(.6+.2*forestNoise(vForestWorld*1.7));
+    float mossMix=smoothstep(.12,1.4,vForestWorld.y)*(.64+.22*forestNoise(vForestWorld*1.7))*(1.-vTrailWear*.8);
     vec2 soilUV=vec2(.5)+(fract(vForestWorld.xz*.36)-.5)*.20;
-    vec4 packedSoil=forestSample(soilUV,vec2(0.,.5))*vec4(.78,.75,.69,1.);
+    vec4 packedSoil=mix(forestSample(soilUV,vec2(0.,.5)),forestSample(soilUV.yx+vec2(.19,.31),vec2(0.,.5)),.35)*vec4(.78,.75,.69,1.);
     vec4 trail=mix(litter,packedSoil,vTrailWear*.85);
     float damp=.5+.5*forestNoise(vForestWorld*.43);
     trail.rgb*=1.-vTrailWear*damp*.17;
@@ -85,7 +126,7 @@ function revealMaterial(material,uniforms,kind=-1,treeMotion=false){
    `:''}
    #include <opaque_fragment>`);
  };
- material.customProgramCacheKey=()=>`forest-buried-veins-liquid-demo-v11-${kind}-${treeMotion}`;
+ material.customProgramCacheKey=()=>`forest-buried-veins-liquid-demo-v12-${kind}-${treeMotion}`;
  return material;
 }
 
@@ -94,12 +135,12 @@ export function createForestMaterials(uniforms){
  const bark=revealMaterial(new THREE.MeshStandardMaterial({map:atlas,color:'#b9b5a6',roughness:1}),uniforms,1);
  const root=revealMaterial(new THREE.MeshStandardMaterial({map:atlas,color:'#756044',roughness:1}),uniforms,3);
  const rock=revealMaterial(new THREE.MeshStandardMaterial({map:atlas,color:'#aaa793',roughness:.95}),uniforms,2);
- const foliage=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,vertexColors:true,alphaTest:.36,side:THREE.DoubleSide,roughness:.84}),uniforms);
+ const foliage=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,alphaTest:.36,side:THREE.DoubleSide,roughness:.84}),uniforms);
  const canopy=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,alphaTest:.36,side:THREE.DoubleSide,roughness:.9,color:'#819269'}),uniforms);
  const twig=revealMaterial(new THREE.MeshStandardMaterial({color:'#4e3e2d',roughness:1}),uniforms);
  const water=revealMaterial(new THREE.MeshStandardMaterial({color:'#456a68',transparent:true,opacity:.34,roughness:.17,metalness:.3,depthWrite:false}),uniforms,-2);
- const hedge=revealMaterial(new THREE.MeshStandardMaterial({map:atlas,color:'#78915c',roughness:.96}),uniforms,4);
- const hedgeLeaf=revealMaterial(new THREE.MeshStandardMaterial({map:leafTexture,alphaTest:.36,side:THREE.DoubleSide,color:'#829c66',roughness:.9}),uniforms);
+ const hedge=revealMaterial(new THREE.MeshStandardMaterial({map:hedgeTexture,color:'#78915c',roughness:.96}),uniforms,4);
+ const hedgeLeaf=revealMaterial(new THREE.MeshStandardMaterial({map:sprigTexture,alphaTest:.4,side:THREE.DoubleSide,color:'#829c66',roughness:.9}),uniforms);
  return {terrain,bark,root,rock,foliage,canopy,twig,water,hedge,hedgeLeaf};
 }
 
@@ -124,7 +165,7 @@ function instance(world,geometry,material,matrices,shadows=false,motion=null,par
   material=revealMaterial(material.clone(),motion.uniforms,motion.kind,true);material.userData.unique=true;
  }
  const mesh=new THREE.InstancedMesh(geometry,material,matrices.length);
- matrices.forEach((matrix,i)=>mesh.setMatrixAt(i,matrix));
+ matrices.forEach((matrix,i)=>{mesh.setMatrixAt(i,matrix);if(matrix.forestColor)mesh.setColorAt(i,matrix.forestColor)});
  if(motion&&shadows){
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:material.map,alphaTest:material.alphaTest,side:material.side});
   depth.onBeforeCompile=shader=>applyTreeMotionShader(shader,motion.uniforms);
@@ -169,25 +210,45 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
   if(!maze.grid[z][x])continue;
   const cx=x*CELL,cz=z*CELL;
   for(let j=0;j<theme.treesPerCell;j++){
-   const tx=cx+(r()-.5)*2.4,tz=cz+(r()-.5)*2.4,base=height(tx,tz)-.65,h=theme.trunkMin+r()*theme.trunkRange,thick=.65+r()*.7;
-   if(pathClearance(maze,tx,tz)>-.48)continue;
+   const tx=cx+(r()-.5)*2.4,tz=cz+(r()-.5)*2.4,base=height(tx,tz)-.25,h=theme.trunkMin+r()*theme.trunkRange;
+   const thick=.68+r()*.72+(r()>.87?.65:0);
+   if(pathClearance(maze,tx,tz)>-.52)continue;
    if(hedgeDensity(maze,tx,tz)>.65&&j>0)continue;
-   const tree=trunks.length;
-   put(trunks,tx,base+h/2,tz,thick,h,thick,0,r()*6.28,0);
-   for(let k=0;k<4;k++){
-    const angle=r()*6.28,length=.5+r()*.65;
+   const tree=trunks.length,axis=new THREE.Vector3((r()-.5)*.11,1,(r()-.5)*.11).normalize();
+   const rotation=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),axis);
+   rotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),r()*Math.PI*2));
+   const bottom=new THREE.Vector3(tx,base,tz),centre=bottom.clone().addScaledVector(axis,h/2);
+   const trunk=new THREE.Matrix4().compose(centre,rotation,new THREE.Vector3(thick,h,thick));trunks.push(trunk);
+   const segment=(list,owners,start,end,width,endWidth=width)=>{
+    const direction=end.clone().sub(start);o.position.copy(start).add(end).multiplyScalar(.5);
+    o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.clone().normalize());
+    o.scale.set(width,direction.length(),endWidth);o.updateMatrix();list.push(o.matrix.clone());owners.push(tree);
+   };
+   // Unequal, weight-bearing buttresses emerge from the buried trunk base.
+   for(let k=0;k<5;k++){
+    const angle=k/5*Math.PI*2+r()*.7,length=(.55+r()*.9)*Math.sqrt(thick);
     const endX=tx+Math.cos(angle)*length,endZ=tz+Math.sin(angle)*length;
-    const endY=height(endX,endZ)+.04;
-    const direction=new THREE.Vector3(endX-tx,endY-base-.2,endZ-tz);
-    o.position.set((tx+endX)/2,(base+.2+endY)/2,(tz+endZ)/2);
-    o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.clone().normalize());o.scale.set(.25,direction.length(),.25);o.updateMatrix();roots.push(o.matrix.clone());rootOwners.push(tree);
+    const start=bottom.clone().addScaledVector(axis,.22+r()*.4);
+    const end=new THREE.Vector3(endX,height(endX,endZ)+.015,endZ);
+    // Root geometry tapers toward its +Y end, away from the trunk.
+    const mid=start.clone().lerp(end,.5);mid.y=height(mid.x,mid.z)+.06;
+    segment(roots,rootOwners,start,mid,.8+r()*.4,.65);
+    segment(roots,rootOwners,mid,end,.22,.18);
    }
-   for(let k=0;k<3;k++){
-    const angle=r()*6.28,length=1.3+r()*2.2,by=base+h*(.52+r()*.3);
-    put(branches,tx+Math.cos(angle)*length*.32,by,tz+Math.sin(angle)*length*.32,.2,length,.2,Math.cos(angle)*.9,r()*6.28,Math.sin(angle)*.9);branchOwners.push(tree);
-    for(let u=0;u<theme.canopyCount;u++){
-     const a=r()*6.28,rad=r()*2.4;
-     put(canopy,tx+Math.cos(a)*rad,by+r()*1.4,tz+Math.sin(a)*rad,.13+r()*.13,.2+r()*.15,1,r()*3.14,r()*6.28,r()*3.14);canopyOwners.push(tree);
+   for(let k=0;k<4;k++){
+    const angle=k*2.4+r()*1.5,length=(1.25+r()*2.15)*Math.sqrt(thick),fraction=.43+k*.105+r()*.08;
+    const start=new THREE.Vector3(0,fraction-.5,0).applyMatrix4(trunk);
+    const end=start.clone().add(new THREE.Vector3(Math.cos(angle)*length,.5+r()*1.5,Math.sin(angle)*length));
+    segment(branches,branchOwners,start,end,.26+r()*.22);
+    // Forked ends give each crown an asymmetrical, connected silhouette.
+    for(let fork=0;fork<2;fork++){
+     const joint=start.clone().lerp(end,.58+fork*.22),a=angle+(fork?-.7:.8);
+     const tip=joint.clone().add(new THREE.Vector3(Math.cos(a)*length*.62,.4+r()*.8,Math.sin(a)*length*.62));
+     segment(branches,branchOwners,joint,tip,.10+r()*.09);
+     for(let u=0;u<Math.round(theme.canopyCount*.58);u++){
+      const spread=r()**.6,a=r()*6.28;
+      put(canopy,tip.x+Math.cos(a)*spread*1.05,tip.y+(r()-.5)*.8,tip.z+Math.sin(a)*spread*1.05,.23+r()*.18,.28+r()*.20,1,-.4-r()*1.8,r()*6.28,r()*1.2);canopyOwners.push(tree);
+     }
     }
    }
   }
@@ -249,36 +310,43 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
 
  // Hedges follow the very same boundary used by collision and the earth banks.
  // Opaque twig/leaf masses close the gaps; small veined leaves break the edge.
- const hedges=[],hedgeLeaves=[];
+ const hedges=[],hedgeLeaves=[],hedgeStems=[];
  const hedgeGeo=new THREE.SphereGeometry(1,9,7),hp=hedgeGeo.attributes.position;
  for(let i=0;i<hp.count;i++){
-  const x=hp.getX(i),y=hp.getY(i),z=hp.getZ(i),bump=1+.07*Math.sin(x*17+z*11)+.04*Math.sin(y*23-x*9);
+  const x=hp.getX(i),y=hp.getY(i),z=hp.getZ(i),bump=1+.10*Math.sin(x*17+z*11)+.05*Math.sin(y*23-x*9);
   hp.setXYZ(i,x*bump,y*bump,z*bump);
  }
  hedgeGeo.computeVertexNormals();
  for(let z=-CELL/2+.3;z<extent-CELL/2;z+=.65)for(let x=-CELL/2+.3;x<extent-CELL/2;x+=.65){
   const cover=hedgeDensity(maze,x,z),gap=pathClearance(maze,x,z);
-  if(cover<.55||gap>-.17||gap<-.63)continue;
-  const base=height(x,z),top=1.55+r()*.45,bulk=.34+r()*.12;
-  put(hedges,x,base+.5,z,bulk,.62,bulk,0,r()*6.28,0);
-  put(hedges,x+(r()-.5)*.12,base+top-.5,z+(r()-.5)*.12,bulk,.58,bulk,0,r()*6.28,0);
-  const count=theme.id==='cinder'?32:80;
-  for(let j=0;j<count;j++){
-   const angle=r()*6.28,rad=.28+r()*.13,y=base+.15+r()*top,leaf=.18+r()*.14;
-   put(hedgeLeaves,x+Math.cos(angle)*rad,y,z+Math.sin(angle)*rad,leaf*.7,leaf,1,(r()-.5)*.65,Math.PI/2-angle,(r()-.5)*1.7);
+  if(cover<.55||gap>-.22||gap<-.72)continue;
+  const base=height(x,z),top=1.4+r()*.65,bulk=.34+r()*.1,lean=(r()-.5)*.19;
+  for(let lobe=0;lobe<3;lobe++){
+   const cy=base+.32+lobe*(top-.52)/2,cx=x+lean*lobe,cz=z+Math.sin(lobe*2+x)*.07;
+   const rx=bulk*(lobe===2?.84:1),ry=.46+r()*.09;
+   // Recessed dark cores fill the interior; all foliage sits outside their surface.
+   put(hedges,cx,cy,cz,rx*.62,ry*.7,rx*.62,0,r()*6.28,0);
+   const count=theme.id==='cinder'?20:45;
+   for(let j=0;j<count;j++){
+    const angle=j*2.39996+r()*.55,v=-.85+r()*1.7,shell=Math.sqrt(1-v*v),leaf=.23+r()*.13;
+    put(hedgeLeaves,cx+Math.cos(angle)*rx*shell,cy+v*ry,cz+Math.sin(angle)*rx*shell,leaf,leaf*1.16,1,(r()-.5)*1.2,Math.PI/2-angle,(r()-.5)*4.2);
+   }
   }
+  put(hedgeStems,x,base+top*.45,z,.025,top*.9,.025,lean,r()*6.28,lean);
+  for(let j=0;j<3;j++)put(hedgeStems,x+lean,base+.45+j*.33,z,.012,.6,.012,.6+r()*.7,r()*6.28,.4);
  }
  const hedgeMesh=instance(world,hedgeGeo,materials.hedge,hedges,true);
- if(hedgeMesh)hedgeMesh.traverse(mesh=>{if(mesh.isInstancedMesh)for(let i=0;i<mesh.count;i++)mesh.setColorAt(i,new THREE.Color().setScalar(.76+r()*.32))});
- instance(world,new THREE.PlaneGeometry(1,1),materials.hedgeLeaf,hedgeLeaves);
+ if(hedgeMesh)hedgeMesh.traverse(mesh=>{if(mesh.isInstancedMesh)for(let i=0;i<mesh.count;i++)mesh.setColorAt(i,new THREE.Color().setScalar(.53+r()*.23))});
+ const hedgeFoliage=instance(world,new THREE.PlaneGeometry(1,1),materials.hedgeLeaf,hedgeLeaves);
+ if(hedgeFoliage)hedgeFoliage.traverse(mesh=>{if(mesh.isInstancedMesh)for(let i=0;i<mesh.count;i++)mesh.setColorAt(i,new THREE.Color().setScalar(.70+r()*.40))});
+ instance(world,new THREE.CylinderGeometry(.35,1,1,5),materials.twig,hedgeStems);
 
 
  // Curved fronds made from paired, veined leaflets rather than flat triangles.
- const fp=[],fn=[],fu=[],fc=[];const matrix=new THREE.Matrix4(),quaternion=new THREE.Quaternion();
- const leafPositions=leafGeo.attributes.position,leafUV=leafGeo.attributes.uv,indices=leafGeo.index;
+ const leaflets=[],matrix=new THREE.Matrix4(),quaternion=new THREE.Quaternion();
  function leaflet(x,y,z,angle,tilt,w,len,color){
   quaternion.setFromEuler(new THREE.Euler(tilt,angle,0));matrix.compose(new THREE.Vector3(x,y,z),quaternion,new THREE.Vector3(w,len,1));
-  for(let i=0;i<indices.count;i++){const k=indices.getX(i),v=new THREE.Vector3().fromBufferAttribute(leafPositions,k).applyMatrix4(matrix);fp.push(v.x,v.y,v.z);fu.push(leafUV.getX(k),leafUV.getY(k));fc.push(color.r,color.g,color.b)}
+  const transform=matrix.clone();transform.forestColor=color;leaflets.push(transform);
  }
  for(let i=0;i<theme.fernCount;i++){
   const x=r()*extent-CELL/2,z=r()*extent-CELL/2,h=height(x,z);
@@ -305,8 +373,10 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
   leaflet(x,h+.025,z,r()*6.28,-Math.PI/2,.05+r()*.09,.10+r()*.15,color);
   if(i%4===0)put(twigs,x,h+.04,z,.012,.18+r()*.4,.012,Math.PI/2,r()*6.28,r());
  }
- const foliageGeo=new THREE.BufferGeometry();foliageGeo.setAttribute('position',new THREE.Float32BufferAttribute(fp,3));foliageGeo.setAttribute('uv',new THREE.Float32BufferAttribute(fu,2));foliageGeo.setAttribute('color',new THREE.Float32BufferAttribute(fc,3));foliageGeo.computeVertexNormals();
- const fernMesh=new THREE.Mesh(foliageGeo,materials.foliage);fernMesh.receiveShadow=true;world.add(fernMesh);
+ // Share one curved leaf and cull patches instead of expanding every leaflet
+ // into 36 vertices. This also keeps normals consistent under nonuniform scale.
+ const foliageGeo=leafGeo.clone();foliageGeo.deleteAttribute('aTreeId');
+ instance(world,foliageGeo,materials.foliage,leaflets);
  instance(world,new THREE.CylinderGeometry(1,1,1,4),materials.twig,twigs);
 
  // Fine surface points add the granular scan character without floating glow dots.
@@ -339,6 +409,6 @@ export function buildForest(world,maze,height,materials,uniforms,theme){
    float mist=exp(-distance(vWorld,uEye)*.045);float alpha=brightness*(1.-smoothstep(.12,.5,dotRadius))*mist;
    vec3 tint=mix(vColor,uVeinTint,.72);gl_FragColor=vec4(tint*1.4,alpha);
   }`});
- pointMaterial.userData.unique=true;world.add(new THREE.Points(pointGeo,pointMaterial));
- return {trunks,reactions};
+ pointMaterial.userData.unique=true;const surfacePoints=new THREE.Points(pointGeo,pointMaterial);world.add(surfacePoints);
+ return {trunks,reactions,surfacePoints};
 }

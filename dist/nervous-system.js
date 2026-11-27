@@ -1,10 +1,10 @@
 import * as THREE from './vendor/three.module.js';
-import {CELL,random} from './maze.js?v=1.1.0-demo.1';
-import {ARRIVAL_WINDOW,PULSE_DURATION} from './pulse-timing.js?v=1.1.0-demo.1';
-import {createNerveGraph,edgeTravelTime} from './nerve-graph.js?v=1.1.0-demo.1';
-import {forestAtlas} from './forest.js?v=1.1.0-demo.1';
-import {scanFieldGLSL} from './scan-field.js?v=1.1.0-demo.1';
-import {treeMotionGLSL} from './tree-motion.js?v=1.1.0-demo.1';
+import {CELL,random} from './maze.js?v=1.2.0-demo.4';
+import {ARRIVAL_WINDOW,PULSE_DURATION} from './pulse-timing.js?v=1.2.0-demo.4';
+import {createNerveGraph,edgeTravelTime} from './nerve-graph.js?v=1.2.0-demo.4';
+import {forestAtlas} from './forest.js?v=1.2.0-demo.4';
+import {scanFieldGLSL} from './scan-field.js?v=1.2.0-demo.4';
+import {treeMotionGLSL} from './tree-motion.js?v=1.2.0-demo.4';
 
 export function createNervousSystem(world,maze,height,uniforms,forest){
  const {trunks,reactions}=forest,treeRoots=[];let currentTree=-1;
@@ -61,15 +61,15 @@ export function createNervousSystem(world,maze,height,uniforms,forest){
  }
  // Connect path nerves to actual tree bases, then climb the ridged bark.
  for(let tree=0;tree<trunks.length;tree++){
-  const matrix=trunks[tree],centre=new THREE.Vector3().setFromMatrixPosition(matrix),node=graph.nearest(centre.x,centre.z);
-  const base=height(centre.x,centre.z),distance=Math.hypot(node.wx-centre.x,node.wz-centre.z),speed=tree%2?4+(tree*.618%1)*3:4+r()*3;
+  const matrix=trunks[tree],centre=new THREE.Vector3().setFromMatrixPosition(matrix),rootBase=new THREE.Vector3(0,-.5,0).applyMatrix4(matrix),node=graph.nearest(rootBase.x,rootBase.z);
+  const base=height(rootBase.x,rootBase.z),distance=Math.hypot(node.wx-rootBase.x,node.wz-rootBase.z),speed=tree%2?4+(tree*.618%1)*3:4+r()*3;
   treeRoots.push({node:node.id,distance,delay:distance/speed});
   if(tree%2)continue;
   currentTree=tree;
   const roots=[],times=[];
   for(let i=0;i<=20;i++){
    const t=i/20,sway=Math.sin(t*Math.PI)*.19;
-   roots.push(groundPoint(THREE.MathUtils.lerp(node.wx,centre.x,t)+sway,THREE.MathUtils.lerp(node.wz,centre.z,t)-sway));
+   roots.push(groundPoint(THREE.MathUtils.lerp(node.wx,rootBase.x,t)+sway,THREE.MathUtils.lerp(node.wz,rootBase.z,t)-sway));
    times.push([node.id,node.id,t*distance/speed,t*distance/speed,t*distance,t*distance]);
   }
   strand(roots,times,.075,null,true);
@@ -77,7 +77,7 @@ export function createNervousSystem(world,maze,height,uniforms,forest){
   for(let branch=0;branch<3;branch++){
    const points=[],normals=[],records=[],angle=r()*6.28,climb=3.5+r()*3.5,climbSpeed=2.4+r()*2.2;
    for(let i=0;i<=64;i++){
-    const t=i/64,worldY=base+climb*t,localY=THREE.MathUtils.clamp((worldY-centre.y)/scaleY,-.5,.5);
+    const t=i/64,worldY=base+climb*t,localY=THREE.MathUtils.clamp(-.5+(worldY-rootBase.y)/matrix.elements[5],-.5,.5);
     const a=angle+t*(branch-1)*1.1+Math.sin(t*8+angle)*.07;
     const radius=THREE.MathUtils.lerp(.34,.16,localY+.5),ridge=1+Math.sin(a*11+localY*9)*.08+Math.sin(a*7-localY*13)*.04;
     const normal=new THREE.Vector3(Math.cos(a),0,Math.sin(a)).transformDirection(matrix);
@@ -104,7 +104,7 @@ export function createNervousSystem(world,maze,height,uniforms,forest){
     float clumps=.42+.58*traceNoise(vWorld*22.);TraceField film=traceField(vWorld,uOrigin,uPulse);
     float buried=mix(.20,1.,film.ink);vec3 tissue=uVeinTint*.66*(wake*.14+head*1.2);
     float fog=exp(-distance(vWorld,uEye)*.038);gl_FragColor=vec4(tissue*textureMask*clumps,arrived*wake*life*vStrength*profile*buried*fog);
-   }`}); material.userData.unique=true;world.add(new THREE.Mesh(geometry,material));
+   }`}); material.userData.unique=true;const nerveMesh=new THREE.Mesh(geometry,material);world.add(nerveMesh);
 
  // Cache each ground texel's attachment to the nearest branching route.
  const resolution=192,data=new Uint8Array(resolution*resolution*4),attachments=[];
@@ -120,6 +120,7 @@ export function createNervousSystem(world,maze,height,uniforms,forest){
  const map=new THREE.DataTexture(data,resolution,resolution,THREE.RGBAFormat);map.minFilter=map.magFilter=THREE.LinearFilter;map.colorSpace=THREE.NoColorSpace;map.needsUpdate=true;
  uniforms.uNerveMap.value=map;uniforms.uForestSize.value=size;
  return {
+  setActive(active){nerveMesh.visible=active},
   pulse(origin){
    const {times,distances}=graph.propagate(origin);
    treeRoots.forEach(({node,distance,delay},tree)=>reactions.reach(tree,times[node]+delay,1-THREE.MathUtils.smoothstep(distances[node]+distance,14.5,17.5)));
